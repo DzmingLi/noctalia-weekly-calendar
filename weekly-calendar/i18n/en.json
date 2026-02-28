@@ -13,7 +13,19 @@
     "allday": "all-day",
     "no_service": "No calendar service",
     "loading": "Loading...",
-    "no_events": "No events"
+    "no_events": "No events",
+    "add_event": "New Event",
+    "create": "Create",
+    "cancel": "Cancel",
+    "summary": "Summary",
+    "date": "Date",
+    "start_time": "Start Time",
+    "end_time": "End Time",
+    "location": "Location",
+    "description": "Description",
+    "calendar_select": "Calendar",
+    "event_created": "Event created",
+    "event_error": "Failed to create event"
   },
   "settings": {
     "weekStart": "First day of week",

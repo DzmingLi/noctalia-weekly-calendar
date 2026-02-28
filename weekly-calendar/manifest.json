@@ -1,12 +1,12 @@
 {
   "id": "weekly-calendar",
   "name": "Weekly Calendar",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "minNoctaliaVersion": "4.2.3",
   "author": "dodaars",
   "license": "MIT",
-  "repository": "https://github.com/noctalia-dev/noctalia-plugins",
-  "description": "A weekly calendar plugin complementing Noctalia's inbuilt calendar service.",
+  "repository": "https://github.com/DzmingLi/noctalia-weekly-calendar",
+  "description": "A weekly calendar plugin with location display and event creation via EDS.",
   "tags": ["Bar", "Panel", "Productivity"],
   "entryPoints": {
     "main": "Main.qml",

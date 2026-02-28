@@ -73,12 +73,16 @@ Item {
         }
     }
 
-    function initializePlugin() { loadEvents() }
+    function initializePlugin() {
+        console.log("[weekly-calendar] initializePlugin called, CalendarService.available=" + CalendarService.available)
+        loadEvents()
+    }
 
     // Fetch events
     function loadEvents() {
+        console.log("[weekly-calendar] loadEvents called, available=" + CalendarService.available + " isLoading=" + isLoading + " hasLoadedOnce=" + hasLoadedOnce)
         if (!CalendarService.available || isLoading) return
-        
+
         isLoading = true
         syncStatus = pluginApi.tr("panel.loading")
         
@@ -458,4 +462,48 @@ Item {
     }
 
     function goToToday() { currentDate = new Date() }
+
+    // Event creation via EDS Python script
+    property string createEventStdout: ""
+    property string createEventStderr: ""
+
+    Process {
+        id: createEventProcess
+        onExited: function(exitCode, exitStatus) {
+            if (exitCode === 0) {
+                try {
+                    var result = JSON.parse(createEventStdout)
+                    if (result.success) {
+                        console.log("Event created: " + result.uid)
+                        Qt.callLater(loadEvents)
+                    }
+                } catch(e) {
+                    console.error("Failed to parse create-event output: " + createEventStdout)
+                }
+            } else {
+                console.error("create-event.py failed: " + createEventStderr)
+            }
+            createEventStdout = ""
+            createEventStderr = ""
+        }
+        stdout: SplitParser {
+            onRead: data => createEventStdout += data
+        }
+        stderr: SplitParser {
+            onRead: data => createEventStderr += data
+        }
+    }
+
+    function createEvent(calendarUid, summary, startTimestamp, endTimestamp, location, description) {
+        var scriptPath = pluginApi.pluginDir + "/scripts/create-event.py"
+        var args = ["python3", scriptPath,
+                    "--calendar", calendarUid,
+                    "--summary", summary,
+                    "--start", String(startTimestamp),
+                    "--end", String(endTimestamp)]
+        if (location) { args.push("--location"); args.push(location) }
+        if (description) { args.push("--description"); args.push(description) }
+        createEventProcess.command = args
+        createEventProcess.running = true
+    }
 }

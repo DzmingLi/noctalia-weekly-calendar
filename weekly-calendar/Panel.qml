@@ -20,6 +20,8 @@ Item {
     readonly property bool panelAnchorVerticalCenter: mainInstance ? mainInstance.panelModeSetting === "centered" : false
     anchors.fill: parent
 
+    property bool showCreateDialog: false
+
     property real hourHeight: 50 * Style.uiScaleRatio
     property real timeColumnWidth: 65 * Style.uiScaleRatio
     property real daySpacing: 1 * Style.uiScaleRatio
@@ -61,6 +63,159 @@ Item {
         }
     }
     
+    // Event creation dialog
+    Rectangle {
+        id: createEventOverlay
+        anchors.fill: parent
+        color: Qt.rgba(0, 0, 0, 0.5)
+        visible: showCreateDialog
+        z: 2000
+
+        MouseArea { anchors.fill: parent; onClicked: showCreateDialog = false }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: 400 * Style.uiScaleRatio
+            height: createDialogColumn.implicitHeight + 2 * Style.marginM
+            color: Color.mSurface
+            radius: Style.radiusM
+
+            MouseArea { anchors.fill: parent } // block clicks through
+
+            ColumnLayout {
+                id: createDialogColumn
+                anchors.fill: parent
+                anchors.margins: Style.marginM
+                spacing: Style.marginS
+
+                NText {
+                    text: pluginApi.tr("panel.add_event")
+                    font.pointSize: Style.fontSizeL; font.weight: Font.Bold
+                    color: Color.mOnSurface
+                }
+
+                NText { text: pluginApi.tr("panel.summary"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                TextField {
+                    id: createEventSummary
+                    Layout.fillWidth: true
+                    placeholderText: pluginApi.tr("panel.summary")
+                    color: Color.mOnSurface
+                    background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                }
+
+                NText { text: pluginApi.tr("panel.date"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                TextField {
+                    id: createEventDate
+                    Layout.fillWidth: true
+                    placeholderText: "YYYY-MM-DD"
+                    color: Color.mOnSurface
+                    background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                }
+
+                RowLayout {
+                    spacing: Style.marginS
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        NText { text: pluginApi.tr("panel.start_time"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                        TextField {
+                            id: createEventStartTime
+                            Layout.fillWidth: true
+                            placeholderText: "HH:MM"
+                            color: Color.mOnSurface
+                            background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                        }
+                    }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        NText { text: pluginApi.tr("panel.end_time"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                        TextField {
+                            id: createEventEndTime
+                            Layout.fillWidth: true
+                            placeholderText: "HH:MM"
+                            color: Color.mOnSurface
+                            background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                        }
+                    }
+                }
+
+                NText { text: pluginApi.tr("panel.location"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                TextField {
+                    id: createEventLocation
+                    Layout.fillWidth: true
+                    placeholderText: pluginApi.tr("panel.location")
+                    color: Color.mOnSurface
+                    background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                }
+
+                NText { text: pluginApi.tr("panel.description"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                TextField {
+                    id: createEventDescription
+                    Layout.fillWidth: true
+                    placeholderText: pluginApi.tr("panel.description")
+                    color: Color.mOnSurface
+                    background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                }
+
+                NText { text: pluginApi.tr("panel.calendar_select"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                ComboBox {
+                    id: calendarSelector
+                    Layout.fillWidth: true
+                    model: CalendarService.calendars || []
+                    textRole: "name"
+                    background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Style.marginS
+
+                    Item { Layout.fillWidth: true }
+
+                    Rectangle {
+                        Layout.preferredWidth: cancelBtn.implicitWidth + 2 * Style.marginM
+                        Layout.preferredHeight: cancelBtn.implicitHeight + Style.marginS
+                        color: Color.mSurfaceVariant; radius: Style.radiusS
+                        NText {
+                            id: cancelBtn; anchors.centerIn: parent
+                            text: pluginApi.tr("panel.cancel"); color: Color.mOnSurfaceVariant
+                        }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: showCreateDialog = false }
+                    }
+
+                    Rectangle {
+                        Layout.preferredWidth: createBtn.implicitWidth + 2 * Style.marginM
+                        Layout.preferredHeight: createBtn.implicitHeight + Style.marginS
+                        color: Color.mPrimary; radius: Style.radiusS
+                        opacity: createEventSummary.text.trim() !== "" ? 1.0 : 0.5
+                        NText {
+                            id: createBtn; anchors.centerIn: parent
+                            text: pluginApi.tr("panel.create"); color: Color.mOnPrimary; font.weight: Font.Bold
+                        }
+                        MouseArea {
+                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (createEventSummary.text.trim() === "") return
+                                var cal = CalendarService.calendars?.[calendarSelector.currentIndex]
+                                var calUid = cal?.uid || ""
+                                var dateParts = createEventDate.text.split("-")
+                                var startParts = createEventStartTime.text.split(":")
+                                var endParts = createEventEndTime.text.split(":")
+                                var startDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1])-1, parseInt(dateParts[2]),
+                                                         parseInt(startParts[0]), parseInt(startParts[1]), 0)
+                                var endDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1])-1, parseInt(dateParts[2]),
+                                                       parseInt(endParts[0]), parseInt(endParts[1]), 0)
+                                mainInstance?.createEvent(calUid, createEventSummary.text.trim(),
+                                    Math.floor(startDate.getTime()/1000), Math.floor(endDate.getTime()/1000),
+                                    createEventLocation.text.trim(), createEventDescription.text.trim())
+                                showCreateDialog = false
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // UI
     Rectangle {
         id: panelContainer
@@ -115,6 +270,20 @@ Item {
 
                     RowLayout {
                         spacing: Style.marginS
+                        NIconButton {
+                            icon: "plus"; tooltipText: pluginApi.tr("panel.add_event")
+                            onClicked: {
+                                createEventSummary.text = ""
+                                createEventLocation.text = ""
+                                createEventDescription.text = ""
+                                var now = new Date()
+                                var startH = now.getHours() + 1
+                                createEventDate.text = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,'0') + "-" + String(now.getDate()).padStart(2,'0')
+                                createEventStartTime.text = String(startH).padStart(2,'0') + ":00"
+                                createEventEndTime.text = String(startH+1).padStart(2,'0') + ":00"
+                                showCreateDialog = true
+                            }
+                        }
                         NIconButton {
                             icon: "chevron-left"
                             onClicked: { mainInstance?.navigateWeek(-7); mainInstance?.loadEvents() }
@@ -445,6 +614,13 @@ Item {
                                                         text: mainInstance?.formatTimeRangeForDisplay(model) || ""
                                                         color: Color.mOnPrimary
                                                         font.pointSize: Style.fontSizeXXS; opacity: 0.9
+                                                        elide: Text.ElideRight; width: parent.width
+                                                    }
+                                                    NText {
+                                                        visible: exactHeight >= 45 && model.location && model.location !== ""
+                                                        text: "\u26B2 " + (model.location || "")
+                                                        color: Color.mOnPrimary
+                                                        font.pointSize: Style.fontSizeXXS; opacity: 0.8
                                                         elide: Text.ElideRight; width: parent.width
                                                     }
                                                 }

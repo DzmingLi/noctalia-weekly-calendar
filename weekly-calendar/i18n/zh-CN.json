@@ -13,7 +13,19 @@
     "allday": "场全天",
     "no_service": "缺少日历服务",
     "loading": "加载中…",
-    "no_events": "没有活动"
+    "no_events": "没有活动",
+    "add_event": "新建活动",
+    "create": "创建",
+    "cancel": "取消",
+    "summary": "标题",
+    "date": "日期",
+    "start_time": "开始时间",
+    "end_time": "结束时间",
+    "location": "地点",
+    "description": "描述",
+    "calendar_select": "日历",
+    "event_created": "活动已创建",
+    "event_error": "创建活动失败"
   },
   "settings": {
     "weekStart": "一周起始日",
