@@ -25,7 +25,22 @@
     "description": "Description",
     "calendar_select": "Calendar",
     "event_created": "Event created",
-    "event_error": "Failed to create event"
+    "event_error": "Failed to create event",
+    "calendar_tab": "Calendar",
+    "tasks_tab": "Tasks",
+    "add_task": "Add Task",
+    "task_summary": "Task Summary",
+    "due_date": "Due Date (optional)",
+    "priority": "Priority",
+    "priority_high": "H",
+    "priority_medium": "M",
+    "priority_low": "L",
+    "task_list_select": "Task List",
+    "task_created": "Task created",
+    "task_error": "Failed to create task",
+    "no_tasks": "No tasks",
+    "show_completed": "Show completed",
+    "overdue": "Overdue"
   },
   "settings": {
     "weekStart": "First day of week",

@@ -17,6 +17,13 @@ Item {
     property bool hasLoadedOnce: false
     property string syncStatus: ""
     property int lastKnownEventCount: 0
+
+    // Todo support
+    property ListModel todosModel: ListModel {}
+    property var taskLists: []
+    property bool todosLoading: false
+    property string todoSyncStatus: ""
+    property bool showCompletedTodos: false
     
     property real dayColumnWidth: 120 * Style.uiScaleRatio
     property real allDaySectionHeight: 0 * Style.uiScaleRatio
@@ -58,6 +65,8 @@ Item {
         function onAvailableChanged() {
             if (CalendarService.available) {
                 Qt.callLater(loadEvents)
+                Qt.callLater(loadTaskLists)
+                Qt.callLater(loadTodos)
             } else {
                 isLoading = false
                 if (pluginApi) syncStatus = pluginApi.tr("panel.no_service")
@@ -106,7 +115,11 @@ Item {
         if (CalendarService.events && CalendarService.events.length > 0) {
             Qt.callLater(updateEventsFromService)
         }
-        if (CalendarService.available) Qt.callLater(loadEvents)
+        if (CalendarService.available) {
+            Qt.callLater(loadEvents)
+            Qt.callLater(loadTaskLists)
+            Qt.callLater(loadTodos)
+        }
     }
 
     onPluginApiChanged: {
@@ -114,7 +127,11 @@ Item {
         if (CalendarService.events && CalendarService.events.length > 0) {
             Qt.callLater(updateEventsFromService)
         }
-        if (CalendarService.available) Qt.callLater(loadEvents)
+        if (CalendarService.available) {
+            Qt.callLater(loadEvents)
+            Qt.callLater(loadTaskLists)
+            Qt.callLater(loadTodos)
+        }
     }
 
     function initializePluginSettings() {
@@ -586,5 +603,171 @@ Item {
         if (description) { args.push("--description"); args.push(description) }
         createEventProcess.command = args
         createEventProcess.running = true
+    }
+
+    // === Todo support ===
+
+    property string listTaskListsStdout: ""
+    property string listTaskListsStderr: ""
+
+    Process {
+        id: listTaskListsProcess
+        onExited: function(exitCode, exitStatus) {
+            if (exitCode === 0) {
+                try {
+                    var result = JSON.parse(listTaskListsStdout)
+                    if (Array.isArray(result)) {
+                        taskLists = result.filter(function(tl) { return tl.enabled })
+                    }
+                } catch(e) {
+                    console.error("[weekly-calendar] Failed to parse task lists: " + listTaskListsStdout)
+                }
+            } else {
+                console.error("[weekly-calendar] list-task-lists.py failed: " + listTaskListsStderr)
+            }
+            listTaskListsStdout = ""
+            listTaskListsStderr = ""
+        }
+        stdout: SplitParser { onRead: data => listTaskListsStdout += data }
+        stderr: SplitParser { onRead: data => listTaskListsStderr += data }
+    }
+
+    property string listTodosStdout: ""
+    property string listTodosStderr: ""
+
+    Process {
+        id: listTodosProcess
+        onExited: function(exitCode, exitStatus) {
+            todosLoading = false
+            if (exitCode === 0) {
+                try {
+                    var result = JSON.parse(listTodosStdout)
+                    if (Array.isArray(result)) {
+                        todosModel.clear()
+                        for (var i = 0; i < result.length; i++) {
+                            todosModel.append(result[i])
+                        }
+                        todoSyncStatus = result.length + (result.length === 1 ? " task" : " tasks")
+                    }
+                } catch(e) {
+                    console.error("[weekly-calendar] Failed to parse todos: " + listTodosStdout)
+                    todoSyncStatus = pluginApi ? pluginApi.tr("panel.task_error") : "Error"
+                }
+            } else {
+                console.error("[weekly-calendar] list-todos.py failed: " + listTodosStderr)
+                todoSyncStatus = pluginApi ? pluginApi.tr("panel.task_error") : "Error"
+            }
+            listTodosStdout = ""
+            listTodosStderr = ""
+        }
+        stdout: SplitParser { onRead: data => listTodosStdout += data }
+        stderr: SplitParser { onRead: data => listTodosStderr += data }
+    }
+
+    property string createTodoStdout: ""
+    property string createTodoStderr: ""
+
+    Process {
+        id: createTodoProcess
+        onExited: function(exitCode, exitStatus) {
+            if (exitCode === 0) {
+                try {
+                    var result = JSON.parse(createTodoStdout)
+                    if (result.success) {
+                        console.log("[weekly-calendar] Todo created: " + result.uid)
+                        Qt.callLater(loadTodos)
+                    }
+                } catch(e) {
+                    console.error("[weekly-calendar] Failed to parse create-todo output: " + createTodoStdout)
+                }
+            } else {
+                console.error("[weekly-calendar] create-todo.py failed: " + createTodoStderr)
+            }
+            createTodoStdout = ""
+            createTodoStderr = ""
+        }
+        stdout: SplitParser { onRead: data => createTodoStdout += data }
+        stderr: SplitParser { onRead: data => createTodoStderr += data }
+    }
+
+    property string updateTodoStdout: ""
+    property string updateTodoStderr: ""
+
+    Process {
+        id: updateTodoProcess
+        onExited: function(exitCode, exitStatus) {
+            if (exitCode === 0) {
+                try {
+                    var result = JSON.parse(updateTodoStdout)
+                    if (result.success) {
+                        console.log("[weekly-calendar] Todo updated")
+                        Qt.callLater(loadTodos)
+                    }
+                } catch(e) {
+                    console.error("[weekly-calendar] Failed to parse update-todo output: " + updateTodoStdout)
+                }
+            } else {
+                console.error("[weekly-calendar] update-todo.py failed: " + updateTodoStderr)
+            }
+            updateTodoStdout = ""
+            updateTodoStderr = ""
+        }
+        stdout: SplitParser { onRead: data => updateTodoStdout += data }
+        stderr: SplitParser { onRead: data => updateTodoStderr += data }
+    }
+
+    function loadTaskLists() {
+        if (!pluginApi) return
+        var scriptPath = pluginApi.pluginDir + "/scripts/list-task-lists.py"
+        listTaskListsProcess.command = ["python3", scriptPath]
+        listTaskListsProcess.running = true
+    }
+
+    function loadTodos() {
+        if (!pluginApi) return
+        todosLoading = true
+        todoSyncStatus = pluginApi.tr("panel.loading")
+        var scriptPath = pluginApi.pluginDir + "/scripts/list-todos.py"
+        var args = ["python3", scriptPath]
+        if (showCompletedTodos) args.push("--include-completed")
+        listTodosProcess.command = args
+        listTodosProcess.running = true
+    }
+
+    function createTodo(taskListUid, summary, due, priority, description) {
+        if (!pluginApi) return
+        var scriptPath = pluginApi.pluginDir + "/scripts/create-todo.py"
+        var args = ["python3", scriptPath,
+                    "--task-list", taskListUid,
+                    "--summary", summary]
+        if (due > 0) { args.push("--due"); args.push(String(due)) }
+        if (priority > 0) { args.push("--priority"); args.push(String(priority)) }
+        if (description) { args.push("--description"); args.push(description) }
+        createTodoProcess.command = args
+        createTodoProcess.running = true
+    }
+
+    function completeTodo(taskListUid, todoUid) {
+        if (!pluginApi) return
+        var scriptPath = pluginApi.pluginDir + "/scripts/update-todo.py"
+        updateTodoProcess.command = ["python3", scriptPath,
+            "--task-list", taskListUid, "--uid", todoUid, "--action", "complete"]
+        updateTodoProcess.running = true
+    }
+
+    function uncompleteTodo(taskListUid, todoUid) {
+        if (!pluginApi) return
+        var scriptPath = pluginApi.pluginDir + "/scripts/update-todo.py"
+        updateTodoProcess.command = ["python3", scriptPath,
+            "--task-list", taskListUid, "--uid", todoUid, "--action", "uncomplete"]
+        updateTodoProcess.running = true
+    }
+
+    function deleteTodo(taskListUid, todoUid) {
+        if (!pluginApi) return
+        var scriptPath = pluginApi.pluginDir + "/scripts/update-todo.py"
+        updateTodoProcess.command = ["python3", scriptPath,
+            "--task-list", taskListUid, "--uid", todoUid, "--action", "delete"]
+        updateTodoProcess.running = true
     }
 }
