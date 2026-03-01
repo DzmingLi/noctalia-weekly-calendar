@@ -16,6 +16,7 @@ Item {
     property bool isLoading: false
     property bool hasLoadedOnce: false
     property string syncStatus: ""
+    property int lastKnownEventCount: 0
     
     property real dayColumnWidth: 120 * Style.uiScaleRatio
     property real allDaySectionHeight: 0 * Style.uiScaleRatio
@@ -44,9 +45,9 @@ Item {
 
     readonly property color lineColor: lineColorTypeSetting === "mOnSurfaceVariant" ? Color.mOnSurfaceVariant : Color.mOutline
 
-    onWeekStartSettingChanged: if (hasLoadedOnce) Qt.callLater(loadEvents)
+    onWeekStartSettingChanged: if (hasLoadedOnce) Qt.callLater(refreshView)
     onTimeFormatSettingChanged: eventsModelChanged()
-    onCurrentDateChanged: Qt.callLater(loadEvents)
+    onCurrentDateChanged: Qt.callLater(refreshView)
     onLineColorTypeSettingChanged: eventsModelChanged()
     onHourLineOpacitySettingChanged: eventsModelChanged()
     onDayLineOpacitySettingChanged: eventsModelChanged()
@@ -63,9 +64,15 @@ Item {
             }
         }
         function onEventsChanged() {
-            if (isLoading || hasLoadedOnce) {
-                Qt.callLater(updateEventsFromService)
+            var count = CalendarService.events ? CalendarService.events.length : 0
+            // If auto-refresh dropped event count significantly, re-request wide range
+            if (hasLoadedOnce && !isLoading && lastKnownEventCount > 10 && count < lastKnownEventCount * 0.5) {
+                console.log("[weekly-calendar] Auto-refresh narrowed events (" + count + " vs " + lastKnownEventCount + "), re-requesting wide range")
+                Qt.callLater(loadEvents)
+                return
             }
+            lastKnownEventCount = Math.max(lastKnownEventCount, count)
+            Qt.callLater(updateEventsFromService)
         }
         function onLoadingChanged() {
             if (!CalendarService.loading && isLoading) {
@@ -95,11 +102,18 @@ Item {
 
     Component.onCompleted: {
         initializePluginSettings()
+        // Process any cached events immediately
+        if (CalendarService.events && CalendarService.events.length > 0) {
+            Qt.callLater(updateEventsFromService)
+        }
         if (CalendarService.available) Qt.callLater(loadEvents)
     }
 
     onPluginApiChanged: {
         initializePluginSettings()
+        if (CalendarService.events && CalendarService.events.length > 0) {
+            Qt.callLater(updateEventsFromService)
+        }
         if (CalendarService.available) Qt.callLater(loadEvents)
     }
 
@@ -119,34 +133,47 @@ Item {
 
     function initializePlugin() {
         console.log("[weekly-calendar] initializePlugin called, CalendarService.available=" + CalendarService.available)
-        loadEvents()
+        if (!hasLoadedOnce && CalendarService.available) {
+            loadEvents()
+        } else {
+            refreshView()
+        }
     }
 
-    // Fetch events - kicks off async request, signals will deliver results
+    // Re-filter existing events for the current week view (no new fetch)
+    function refreshView() {
+        if (!pluginApi) return
+        if (CalendarService.events && CalendarService.events.length > 0) {
+            updateEventsFromService()
+        } else if (hasLoadedOnce) {
+            clearEventModels()
+            syncStatus = pluginApi.tr("panel.no_events")
+        }
+    }
+
+    // Fetch events from EDS - requests a wide date range to cover past/future navigation
     function loadEvents() {
         if (!pluginApi) return
         if (!CalendarService.available) {
             syncStatus = pluginApi.tr("panel.no_service")
+            console.log("[weekly-calendar] loadEvents: service not available")
             return
         }
 
         isLoading = true
         syncStatus = pluginApi.tr("panel.loading")
 
-        var now = new Date()
-        var start = new Date(weekStart), end = new Date(weekEnd)
-        start.setDate(start.getDate() - 7)
-        end.setDate(end.getDate() + 14)
+        // Request a wide range: 180 days behind, 60 days ahead
+        // This covers ~6 months of past events and ~2 months of future events
+        var daysAhead = 60
+        var daysBehind = 180
 
-        CalendarService.loadEvents(
-            Math.max(0, Math.ceil((end - now) / 86400000)),
-            Math.max(0, Math.ceil((now - start) / 86400000))
-        )
+        CalendarService.loadEvents(daysAhead, daysBehind)
 
         hasLoadedOnce = true
         loadingTimeout.restart()
 
-        // If CalendarService already has events (cached), process them now
+        // If CalendarService already has events (cached), display them now
         if (CalendarService.events && CalendarService.events.length > 0) {
             Qt.callLater(updateEventsFromService)
         }

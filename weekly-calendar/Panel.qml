@@ -30,7 +30,7 @@ Item {
     // When panel opens, trigger a fresh load if needed.
     Component.onCompleted: mainInstance?.initializePlugin()
     onVisibleChanged: if (visible && mainInstance) {
-        mainInstance.loadEvents()
+        mainInstance.refreshView()
         mainInstance.goToToday()
         Qt.callLater(root.scrollToCurrentTime)
     }
@@ -274,15 +274,15 @@ Item {
                         }
                         NIconButton {
                             icon: "chevron-left"
-                            onClicked: { mainInstance?.navigateWeek(-7); mainInstance?.loadEvents() }
+                            onClicked: mainInstance?.navigateWeek(-7)
                         }
                         NIconButton {
                             icon: "calendar"; tooltipText: pluginApi.tr("panel.today")
-                            onClicked: { mainInstance?.goToToday(); mainInstance?.loadEvents(); Qt.callLater(root.scrollToCurrentTime) }
+                            onClicked: { mainInstance?.goToToday(); Qt.callLater(root.scrollToCurrentTime) }
                         }
                         NIconButton {
                             icon: "chevron-right"
-                            onClicked: { mainInstance?.navigateWeek(7); mainInstance?.loadEvents() }
+                            onClicked: mainInstance?.navigateWeek(7)
                         }
                         NIconButton {
                             icon: "refresh"; tooltipText: I18n.tr("common.refresh")
@@ -452,7 +452,6 @@ Item {
                                 } else if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
                                     if (mainInstance) {
                                         mainInstance.navigateWeek(event.key === Qt.Key_Left ? -7 : 7)
-                                        mainInstance.loadEvents()
                                     }
                                     event.accepted = true
                                 }
