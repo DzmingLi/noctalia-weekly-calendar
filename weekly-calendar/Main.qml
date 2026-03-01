@@ -22,7 +22,6 @@ Item {
     property ListModel todosModel: ListModel {}
     property var taskLists: []
     property bool todosLoading: false
-    property string todoSyncStatus: ""
     property bool showCompletedTodos: false
     
     property real dayColumnWidth: 120 * Style.uiScaleRatio
@@ -204,12 +203,24 @@ Item {
         if (!CalendarService.available) {
             syncStatus = pluginApi.tr("panel.no_service")
         } else if (!CalendarService.events?.length) {
-            syncStatus = pluginApi.tr("panel.no_events")
+            var todoStats = processTodosForWeek()
+            if (todoStats.count > 0) {
+                syncStatus = pluginApi.tr("panel.no_events") + ", " +
+                    todoStats.count + " " + (todoStats.count === 1 ? pluginApi.tr("panel.task") : pluginApi.tr("panel.tasks"))
+            } else {
+                syncStatus = pluginApi.tr("panel.no_events")
+            }
         } else {
             var stats = processCalendarEvents(CalendarService.events)
-            syncStatus = stats.timedCount === 1
-                ? `${stats.timedCount} ${pluginApi.tr("panel.event")}, ${stats.allDayCount} ${pluginApi.tr("panel.allday")}`
-                : `${stats.timedCount} ${pluginApi.tr("panel.events")}, ${stats.allDayCount} ${pluginApi.tr("panel.allday")}`
+            var todoStats = processTodosForWeek()
+            var parts = []
+            parts.push(stats.timedCount === 1
+                ? `${stats.timedCount} ${pluginApi.tr("panel.event")}`
+                : `${stats.timedCount} ${pluginApi.tr("panel.events")}`)
+            parts.push(`${stats.allDayCount} ${pluginApi.tr("panel.allday")}`)
+            if (todoStats.count > 0)
+                parts.push(todoStats.count + " " + (todoStats.count === 1 ? pluginApi.tr("panel.task") : pluginApi.tr("panel.tasks")))
+            syncStatus = parts.join(", ")
         }
 
         isLoading = false
@@ -256,6 +267,60 @@ Item {
         return {timedCount: timedCount, allDayCount: allDayCount}
     }
 
+    function processTodosForWeek() {
+        var weekStartDate = new Date(weekStart)
+        var weekEndDate = new Date(weekEnd)
+        var count = 0
+
+        for (var i = 0; i < todosModel.count; i++) {
+            var todo = todosModel.get(i)
+            if (!todo.due) continue
+
+            var dueDate = new Date(todo.due)
+            if (isNaN(dueDate.getTime())) continue
+            if (dueDate < weekStartDate || dueDate >= weekEndDate) continue
+            if (!showCompletedTodos && todo.status === "COMPLETED") continue
+
+            var isDueAllDay = (dueDate.getHours() === 0 && dueDate.getMinutes() === 0)
+            var endDate = isDueAllDay ? new Date(dueDate.getTime() + 86400000)
+                                       : new Date(dueDate.getTime() + 1800000)
+
+            var todoEvent = {
+                id: "todo-" + todo.uid,
+                title: todo.summary,
+                description: todo.description || "",
+                location: "",
+                startTime: dueDate,
+                endTime: endDate,
+                allDay: isDueAllDay,
+                multiDay: false,
+                daySpan: 1,
+                isTodo: true,
+                todoUid: todo.uid,
+                calendarUid: todo.calendarUid,
+                todoStatus: todo.status,
+                todoPriority: todo.priority,
+            }
+
+            if (isDueAllDay) {
+                allDayEventsModel.append(todoEvent)
+            } else {
+                eventsModel.append(todoEvent)
+            }
+            count++
+        }
+
+        // Recalculate layouts after adding todos
+        if (count > 0) {
+            calculateAllDayEventLayout()
+            updateOverlappingEvents()
+            eventsModel.layoutChanged()
+            allDayEventsModel.layoutChanged()
+        }
+
+        return { count: count }
+    }
+
     function clearEventModels() { eventsModel.clear(); allDayEventsModel.clear() }
 
     function processTimedEventIntoArray(eventObj, target) {
@@ -284,7 +349,7 @@ Item {
             id: id, title: event.summary || "Untitled Event", description: event.description || "",
             location: event.location || "", startTime: start, endTime: end, allDay: allDay, multiDay: multiDay,
             daySpan: daySpan, rawStart: event.start, rawEnd: event.end, duration: (event.end - event.start) / 3600,
-            endsAtMidnight: endsMidnight
+            endsAtMidnight: endsMidnight, isTodo: false, todoUid: "", calendarUid: "", todoStatus: "", todoPriority: 0
         }
     }
 
@@ -293,7 +358,8 @@ Item {
             id: event.id + "-part-" + partIdx, title: event.title, description: event.description,
             location: event.location, startTime: start, endTime: end, allDay: false, multiDay: true,
             daySpan: 1, fullStartTime: event.startTime, fullEndTime: event.endTime, isPart: true,
-            partDay: new Date(day), partIndex: partNum, totalParts: total
+            partDay: new Date(day), partIndex: partNum, totalParts: total,
+            isTodo: false, todoUid: "", calendarUid: "", todoStatus: "", todoPriority: 0
         }
     }
 
@@ -371,7 +437,9 @@ Item {
             startTime: event.startTime, endTime: event.endTime, allDay: event.allDay, multiDay: event.multiDay,
             daySpan: event.daySpan, rawStart: event.rawStart, rawEnd: event.rawEnd, duration: event.duration,
             endsAtMidnight: event.endsAtMidnight, fullStartTime: event.fullStartTime, fullEndTime: event.fullEndTime,
-            startDay: startDay, spanDays: spanDays, lane: lane, isContinuation: isCont
+            startDay: startDay, spanDays: spanDays, lane: lane, isContinuation: isCont,
+            isTodo: event.isTodo || false, todoUid: event.todoUid || "", calendarUid: event.calendarUid || "",
+            todoStatus: event.todoStatus || "", todoPriority: event.todoPriority || 0
         }
     }
 
@@ -647,15 +715,14 @@ Item {
                         for (var i = 0; i < result.length; i++) {
                             todosModel.append(result[i])
                         }
-                        todoSyncStatus = result.length + (result.length === 1 ? " task" : " tasks")
+                        // Re-process events to include updated todos on the calendar
+                        Qt.callLater(updateEventsFromService)
                     }
                 } catch(e) {
                     console.error("[weekly-calendar] Failed to parse todos: " + listTodosStdout)
-                    todoSyncStatus = pluginApi ? pluginApi.tr("panel.task_error") : "Error"
                 }
             } else {
                 console.error("[weekly-calendar] list-todos.py failed: " + listTodosStderr)
-                todoSyncStatus = pluginApi ? pluginApi.tr("panel.task_error") : "Error"
             }
             listTodosStdout = ""
             listTodosStderr = ""

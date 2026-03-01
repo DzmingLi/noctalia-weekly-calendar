@@ -26,8 +26,8 @@
     "calendar_select": "Calendar",
     "event_created": "Event created",
     "event_error": "Failed to create event",
-    "calendar_tab": "Calendar",
-    "tasks_tab": "Tasks",
+    "task": "task",
+    "tasks": "tasks",
     "add_task": "Add Task",
     "task_summary": "Task Summary",
     "due_date": "Due Date (optional)",
@@ -38,7 +38,6 @@
     "task_list_select": "Task List",
     "task_created": "Task created",
     "task_error": "Failed to create task",
-    "no_tasks": "No tasks",
     "show_completed": "Show completed",
     "overdue": "Overdue"
   },

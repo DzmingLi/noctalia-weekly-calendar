@@ -26,8 +26,8 @@
     "calendar_select": "日历",
     "event_created": "活动已创建",
     "event_error": "创建活动失败",
-    "calendar_tab": "日历",
-    "tasks_tab": "任务",
+    "task": "个任务",
+    "tasks": "个任务",
     "add_task": "添加任务",
     "task_summary": "任务摘要",
     "due_date": "截止日期（可选）",
@@ -38,7 +38,6 @@
     "task_list_select": "任务列表",
     "task_created": "任务已创建",
     "task_error": "创建任务失败",
-    "no_tasks": "没有任务",
     "show_completed": "显示已完成",
     "overdue": "已逾期"
   },
