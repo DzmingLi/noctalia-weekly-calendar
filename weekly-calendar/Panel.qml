@@ -269,8 +269,8 @@ Item {
                     background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
                 }
 
-                // Reuse existing label to avoid new translation key
-                NText { text: pluginApi.tr("panel.start_time"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                // Use end_time label to reflect deadline semantics
+                NText { text: pluginApi.tr("panel.end_time"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
                 TextField {
                     id: createTaskDueTime
                     Layout.fillWidth: true
