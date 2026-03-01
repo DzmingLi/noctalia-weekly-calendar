@@ -51,13 +51,57 @@ Item {
     onHourLineOpacitySettingChanged: eventsModelChanged()
     onDayLineOpacitySettingChanged: eventsModelChanged()
 
+    // React to CalendarService signals (async event delivery)
+    Connections {
+        target: CalendarService
+        function onAvailableChanged() {
+            if (CalendarService.available) {
+                Qt.callLater(loadEvents)
+            } else {
+                isLoading = false
+                if (pluginApi) syncStatus = pluginApi.tr("panel.no_service")
+            }
+        }
+        function onEventsChanged() {
+            if (isLoading || hasLoadedOnce) {
+                Qt.callLater(updateEventsFromService)
+            }
+        }
+        function onLoadingChanged() {
+            if (!CalendarService.loading && isLoading) {
+                Qt.callLater(updateEventsFromService)
+            }
+        }
+    }
+
+    // Safety timeout: if CalendarService never signals back, stop spinning
+    Timer {
+        id: loadingTimeout
+        interval: 15000
+        repeat: false
+        onTriggered: {
+            if (isLoading) {
+                console.warn("[weekly-calendar] loading timeout, forcing update")
+                updateEventsFromService()
+            }
+        }
+    }
+
     // IPC
     IpcHandler {
         target: "plugin:weekly-calendar"
         function togglePanel() { pluginApi?.withCurrentScreen(s => pluginApi.togglePanel(s)) }
     }
 
-    Component.onCompleted: initializePluginSettings()
+    Component.onCompleted: {
+        initializePluginSettings()
+        if (CalendarService.available) Qt.callLater(loadEvents)
+    }
+
+    onPluginApiChanged: {
+        initializePluginSettings()
+        if (CalendarService.available) Qt.callLater(loadEvents)
+    }
 
     function initializePluginSettings() {
         if (!pluginApi) return
@@ -78,42 +122,52 @@ Item {
         loadEvents()
     }
 
-    // Fetch events
+    // Fetch events - kicks off async request, signals will deliver results
     function loadEvents() {
-        console.log("[weekly-calendar] loadEvents called, available=" + CalendarService.available + " isLoading=" + isLoading + " hasLoadedOnce=" + hasLoadedOnce)
-        if (!CalendarService.available || isLoading) return
+        if (!pluginApi) return
+        if (!CalendarService.available) {
+            syncStatus = pluginApi.tr("panel.no_service")
+            return
+        }
 
         isLoading = true
         syncStatus = pluginApi.tr("panel.loading")
-        
+
         var now = new Date()
         var start = new Date(weekStart), end = new Date(weekEnd)
         start.setDate(start.getDate() - 7)
         end.setDate(end.getDate() + 14)
-        
+
         CalendarService.loadEvents(
             Math.max(0, Math.ceil((end - now) / 86400000)),
             Math.max(0, Math.ceil((now - start) / 86400000))
         )
-        
+
         hasLoadedOnce = true
-        updateEventsFromService()
+        loadingTimeout.restart()
+
+        // If CalendarService already has events (cached), process them now
+        if (CalendarService.events && CalendarService.events.length > 0) {
+            Qt.callLater(updateEventsFromService)
+        }
     }
 
     function updateEventsFromService() {
+        if (!pluginApi) return
+        loadingTimeout.stop()
         clearEventModels()
-        
+
         if (!CalendarService.available) {
             syncStatus = pluginApi.tr("panel.no_service")
         } else if (!CalendarService.events?.length) {
             syncStatus = pluginApi.tr("panel.no_events")
         } else {
             var stats = processCalendarEvents(CalendarService.events)
-            syncStatus = stats.timedCount === 1 
+            syncStatus = stats.timedCount === 1
                 ? `${stats.timedCount} ${pluginApi.tr("panel.event")}, ${stats.allDayCount} ${pluginApi.tr("panel.allday")}`
                 : `${stats.timedCount} ${pluginApi.tr("panel.events")}, ${stats.allDayCount} ${pluginApi.tr("panel.allday")}`
         }
-        
+
         isLoading = false
     }
 

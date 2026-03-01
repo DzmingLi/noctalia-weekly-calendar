@@ -26,23 +26,11 @@ Item {
     property real timeColumnWidth: 65 * Style.uiScaleRatio
     property real daySpacing: 1 * Style.uiScaleRatio
 
-    // Attempt at live syncing
-    Connections {
-        target: CalendarService
-        enabled: root.visible
-        function onEventsChanged() { 
-            if (mainInstance) {
-                Qt.callLater(() => {
-                    mainInstance.updateEventsFromService()
-                    mainInstance.calculateAllDayEventLayout()
-                })
-            }
-        }
-    }
-
+    // Panel doesn't need its own CalendarService connection - Main.qml handles it.
+    // When panel opens, trigger a fresh load if needed.
     Component.onCompleted: mainInstance?.initializePlugin()
     onVisibleChanged: if (visible && mainInstance) {
-        mainInstance.updateEventsFromService()
+        mainInstance.loadEvents()
         mainInstance.goToToday()
         Qt.callLater(root.scrollToCurrentTime)
     }
