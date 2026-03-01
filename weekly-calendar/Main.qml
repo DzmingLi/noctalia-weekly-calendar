@@ -15,6 +15,8 @@ Item {
     property var overlappingEventsData: ({})
     property bool isLoading: false
     property bool hasLoadedOnce: false
+    // Defer UI refresh until CalendarService finishes loading to avoid flicker
+    property bool pendingEventsUpdate: false
     property string syncStatus: ""
     property int lastKnownEventCount: 0
 
@@ -80,10 +82,18 @@ Item {
                 return
             }
             lastKnownEventCount = Math.max(lastKnownEventCount, count)
-            Qt.callLater(updateEventsFromService)
+            if (CalendarService.loading) {
+                pendingEventsUpdate = true
+            } else {
+                Qt.callLater(updateEventsFromService)
+            }
         }
         function onLoadingChanged() {
             if (!CalendarService.loading && isLoading) {
+                pendingEventsUpdate = false
+                Qt.callLater(updateEventsFromService)
+            } else if (!CalendarService.loading && pendingEventsUpdate) {
+                pendingEventsUpdate = false
                 Qt.callLater(updateEventsFromService)
             }
         }
@@ -177,12 +187,13 @@ Item {
         }
 
         isLoading = true
+        pendingEventsUpdate = false
         syncStatus = pluginApi.tr("panel.loading")
 
-        // Request a wide range: 180 days behind, 60 days ahead
-        // This covers ~6 months of past events and ~2 months of future events
-        var daysAhead = 60
-        var daysBehind = 180
+        // Request a wider range: 365 days behind, 365 days ahead
+        // Covers roughly a full year in both directions so future months stay populated
+        var daysAhead = 365
+        var daysBehind = 365
 
         CalendarService.loadEvents(daysAhead, daysBehind)
 
@@ -239,7 +250,7 @@ Item {
             var overlapsWeek = eventStart < weekEndDate && eventEnd > weekStartDate
             
             if (overlapsWeek) {
-                var key = event.uid + "-" + event.start + "-" + event.end + i
+                var key = event.uid + "-" + event.start + "-" + event.end
                 if (eventObj.allDay) {
                     if (!uniqueAllDayEvents[key]) {
                         uniqueAllDayEvents[key] = true
