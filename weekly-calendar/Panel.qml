@@ -13,7 +13,7 @@ Item {
     readonly property var mainInstance: pluginApi?.mainInstance
     readonly property var geometryPlaceholder: panelContainer
     property real contentPreferredWidth: 950 * Style.uiScaleRatio
-    property real contentPreferredHeight: 700 * Style.uiScaleRatio
+    property real contentPreferredHeight: 900 * Style.uiScaleRatio
     property real topHeaderHeight: 60 * Style.uiScaleRatio
     readonly property bool allowAttach: mainInstance ? mainInstance.panelModeSetting === "attached" : false
     readonly property bool panelAnchorHorizontalCenter: mainInstance ? mainInstance.panelModeSetting === "centered" : false
@@ -23,18 +23,32 @@ Item {
     property bool showCreateDialog: false
     property bool showCreateTaskDialog: false
 
-    property real hourHeight: 50 * Style.uiScaleRatio
+    property real defaultHourHeight: 50 * Style.uiScaleRatio
+    property real minHourHeight: 32 * Style.uiScaleRatio
+    property real hourHeight: defaultHourHeight
     property real timeColumnWidth: 65 * Style.uiScaleRatio
     property real daySpacing: 1 * Style.uiScaleRatio
 
     // Panel doesn't need its own CalendarService connection - Main.qml handles it.
     // When panel opens, trigger a fresh load if needed.
-    Component.onCompleted: mainInstance?.initializePlugin()
+    Component.onCompleted: {
+        mainInstance?.initializePlugin()
+        Qt.callLater(root.adjustHourHeightForViewport)
+    }
     onVisibleChanged: if (visible && mainInstance) {
         mainInstance.refreshView()
         mainInstance.goToToday()
         Qt.callLater(root.scrollToCurrentTime)
         mainInstance.loadTodos()
+        Qt.callLater(root.adjustHourHeightForViewport)
+    }
+
+    function adjustHourHeightForViewport() {
+        if (!calendarFlickable || calendarFlickable.height <= 0) return
+        // Target showing 08:30–24:00 (~15.5 hours) without scroll; fall back to min height if space is tight.
+        var target = calendarFlickable.height / 15.5
+        var newHeight = Math.max(minHourHeight, Math.min(defaultHourHeight, target))
+        if (Math.abs(newHeight - hourHeight) > 0.5) hourHeight = newHeight
     }
 
     // Scroll to time indicator position
@@ -615,6 +629,7 @@ Item {
                             clip: true
                             contentHeight: 24 * (root.hourHeight)
                             boundsBehavior: Flickable.DragOverBounds
+                            onHeightChanged: Qt.callLater(root.adjustHourHeightForViewport)
 
                             Component.onCompleted: {
                                 calendarFlickable.forceActiveFocus()
@@ -727,7 +742,7 @@ Item {
                                             property real endHour: model.endTime.getHours() + model.endTime.getMinutes() / 60
                                             property real duration: Math.max(0, (model.endTime - model.startTime) / 3600000)
 
-                                            property real exactHeight: Math.max(1, duration * (mainInstance?.hourHeight || 50) - 1)
+                                            property real exactHeight: Math.max(1, duration * (root.hourHeight) - 1)
                                             property bool isCompact: exactHeight < 40
                                             property var overlapInfo: mainInstance?.overlappingEventsData?.[index] ?? {
                                                 xOffset: 0, width: (mainInstance?.dayColumnWidth) - 8, lane: 0, totalLanes: 1
@@ -739,7 +754,7 @@ Item {
                                             width: eventWidth
                                             height: exactHeight
                                             x: dayIndex * ((mainInstance?.dayColumnWidth) + (root.daySpacing)) + eventXOffset
-                                            y: startHour * (mainInstance?.hourHeight || 50)
+                                            y: startHour * (root.hourHeight)
                                             z: 100 + overlapInfo.lane
 
                                             property bool isTodoItem: model.isTodo || false
