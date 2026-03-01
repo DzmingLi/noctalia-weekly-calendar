@@ -264,7 +264,17 @@ Item {
                 TextField {
                     id: createTaskDueDate
                     Layout.fillWidth: true
-                    placeholderText: "YYYY-MM-DD HH:MM"
+                    placeholderText: "YYYY-MM-DD"
+                    color: Color.mOnSurface
+                    background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                }
+
+                // Reuse existing label to avoid new translation key
+                NText { text: pluginApi.tr("panel.start_time"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                TextField {
+                    id: createTaskDueTime
+                    Layout.fillWidth: true
+                    placeholderText: "HH:MM"
                     color: Color.mOnSurface
                     background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
                 }
@@ -351,7 +361,11 @@ Item {
                                 var tlUid = tl?.uid || ""
                                 var dueTs = 0
                                 if (createTaskDueDate.text.trim() !== "") {
-                                    var d = new Date(createTaskDueDate.text.trim())
+                                    var dateParts = createTaskDueDate.text.split("-")
+                                    var timeParts = createTaskDueTime.text.split(":")
+                                    var h = createTaskDueTime.text.trim() === "" ? 0 : parseInt(timeParts[0])
+                                    var m = createTaskDueTime.text.trim() === "" ? 0 : parseInt(timeParts[1] || "0")
+                                    var d = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]), h, m, 0)
                                     if (!isNaN(d.getTime())) dueTs = Math.floor(d.getTime() / 1000)
                                 }
                                 mainInstance?.createTodo(tlUid, createTaskSummary.text.trim(),
@@ -438,7 +452,10 @@ Item {
                             icon: "clipboard-check"; tooltipText: pluginApi.tr("panel.add_task")
                             onClicked: {
                                 createTaskSummary.text = ""
-                                createTaskDueDate.text = ""
+                                var now = new Date()
+                                var startH = now.getHours() + 1
+                                createTaskDueDate.text = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,'0') + "-" + String(now.getDate()).padStart(2,'0')
+                                createTaskDueTime.text = String(startH).padStart(2,'0') + ":00"
                                 createTaskDescription.text = ""
                                 createTaskDialogColumn.selectedPriority = 0
                                 showCreateTaskDialog = true
