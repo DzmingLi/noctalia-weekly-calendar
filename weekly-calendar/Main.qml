@@ -313,7 +313,6 @@ Item {
                 calendarUid: todo.calendarUid,
                 todoStatus: todo.status,
                 todoPriority: todo.priority,
-                isLineTodo: !isDueAllDay,
                 // Helper flags for compact rendering in Panel.qml
                 isDeadlineMarker: !isDueAllDay
             }

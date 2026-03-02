@@ -1409,53 +1409,36 @@ Item {
                                             property real eventXOffset: overlapInfo.xOffset
 
                                             property bool isTodoItem: model.isTodo || false
-                                            property bool isTodoLine: isTodoItem && (model.isDeadlineMarker || model.isLineTodo || false)
-                                            property bool isDeadline: (model.isDeadlineMarker || false) && !isTodoLine
+                                            property bool isDeadline: model.isDeadlineMarker || false
                                             property color eventColor: isDeadline ? Color.mSecondary : (isTodoItem ? Color.mSecondary : Color.mPrimary)
                                             property color eventTextColor: isDeadline ? Color.mOnSecondary : (isTodoItem ? Color.mOnSecondary : Color.mOnPrimary)
-                                            property real todoLineThickness: Math.max(2, 2 * Style.uiScaleRatio)
-                                            property real todoLabelGutter: {
-                                                var available = Math.max(eventWidth - 12, 0)
-                                                var base = Math.min(Math.max(eventWidth * 0.5, 80 * Style.uiScaleRatio), 150 * Style.uiScaleRatio)
-                                                var gutter = Math.min(base, available)
-                                                if (gutter <= 0 && available > 0) gutter = Math.min(available, 40 * Style.uiScaleRatio)
-                                                return gutter
-                                            }
 
                                             visible: dayIndex >= 0 && dayIndex < 7 && duration > 0
                                             width: eventWidth
-                                            height: isTodoLine ? Math.max(todoLineThickness + 10, 18 * Style.uiScaleRatio)
-                                                                : (isDeadline ? Math.max(8, Math.min(12, exactHeight)) : exactHeight)
+                                            height: isDeadline ? Math.max(8, Math.min(12, exactHeight)) : exactHeight
                                             x: dayIndex * ((mainInstance?.dayColumnWidth) + (root.daySpacing)) + eventXOffset
                                             y: startHour * (root.hourHeight)
-                                            z: (isTodoLine ? 300 : 100) + overlapInfo.lane
+                                            z: 100 + overlapInfo.lane
 
-                                            Item {
+                                            Rectangle {
                                                 anchors.fill: parent
-                                                clip: false
-
+                                                color: eventColor
+                                                radius: Style.radiusS
+                                                opacity: isDeadline ? 0.95 : (isTodoItem && model.todoStatus === "COMPLETED" ? 0.5 : 0.9)
+                                                clip: true
                                                 Rectangle {
+                                                    visible: exactHeight < 5 && overlapInfo.lane > 0
                                                     anchors.fill: parent
-                                                    visible: !isTodoLine
-                                                    color: eventColor
-                                                    radius: Style.radiusS
-                                                    opacity: isDeadline ? 0.95 : (isTodoItem && model.todoStatus === "COMPLETED" ? 0.5 : 0.9)
-                                                    clip: true
-                                                    Rectangle {
-                                                        visible: exactHeight < 5 && overlapInfo.lane > 0
-                                                        anchors.fill: parent
-                                                        color: "transparent"
-                                                        radius: parent.radius
-                                                        border.width: 1
-                                                        border.color: eventColor
-                                                    }
+                                                    color: "transparent"
+                                                    radius: parent.radius
+                                                    border.width: 1
+                                                    border.color: eventColor
                                                 }
-
                                                 Loader {
                                                     anchors.fill: parent
-                                                    anchors.margins: isTodoLine ? 0 : (exactHeight < 10 ? 1 : Style.marginS)
-                                                    anchors.leftMargin: isTodoLine ? 0 : (exactHeight < 10 ? 1 : Style.marginS + 3)
-                                                    sourceComponent: isTodoLine ? todoLineLayout : (isDeadline ? deadlineLayout : (isCompact ? compactLayout : normalLayout))
+                                                    anchors.margins: exactHeight < 10 ? 1 : Style.marginS
+                                                    anchors.leftMargin: exactHeight < 10 ? 1 : Style.marginS + 3
+                                                    sourceComponent: isDeadline ? deadlineLayout : (isCompact ? compactLayout : normalLayout)
                                                 }
                                             }
 
@@ -1504,59 +1487,6 @@ Item {
                                                     font.strikeout: isTodoItem && model.todoStatus === "COMPLETED"
                                                     elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter
                                                     width: parent.width - 3
-                                                }
-                                            }
-
-                                            Component {
-                                                id: todoLineLayout
-                                                Item {
-                                                    anchors.fill: parent
-                                                    clip: false
-
-                                                    Rectangle {
-                                                        id: line
-                                                        anchors.left: parent.left
-                                                        anchors.right: parent.right
-                                                        anchors.rightMargin: todoLabelGutter
-                                                        anchors.verticalCenter: parent.verticalCenter
-                                                        height: todoLineThickness
-                                                        radius: todoLineThickness / 2
-                                                        color: eventColor
-                                                        opacity: model.todoStatus === "COMPLETED" ? 0.45 : 1.0
-                                                    }
-
-                                                    Rectangle {
-                                                        id: leader
-                                                        width: 12 * Style.uiScaleRatio
-                                                        height: todoLineThickness
-                                                        anchors.left: line.right
-                                                        anchors.verticalCenter: line.verticalCenter
-                                                        color: eventColor
-                                                        opacity: line.opacity
-                                                    }
-
-                                                    Rectangle {
-                                                        id: labelBox
-                                                        anchors.left: leader.right
-                                                        anchors.verticalCenter: line.verticalCenter
-                                                        width: Math.max(todoLabelGutter - leader.width, 70 * Style.uiScaleRatio)
-                                                        height: Math.max(todoLineThickness + Style.marginS, 18 * Style.uiScaleRatio)
-                                                        radius: Style.radiusS
-                                                        color: Color.mSurface
-                                                        border.color: Qt.alpha(eventColor, 0.9)
-                                                        border.width: 1
-                                                        NText {
-                                                            anchors.fill: parent
-                                                            anchors.margins: Style.marginS / 2
-                                                            text: (model.todoStatus === "COMPLETED" ? "\u2611 " : "\u2610 ") + (model.title || "")
-                                                            color: eventColor
-                                                            font.pointSize: Style.fontSizeXXS
-                                                            font.weight: Font.Medium
-                                                            font.strikeout: model.todoStatus === "COMPLETED"
-                                                            elide: Text.ElideRight
-                                                            verticalAlignment: Text.AlignVCenter
-                                                        }
-                                                    }
                                                 }
                                             }
 
