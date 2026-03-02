@@ -25,6 +25,9 @@ Item {
     property bool showEventDetailDialog: false
     property bool eventDetailEditMode: false
     property bool showDeleteConfirmation: false
+    property bool showTodoDetailDialog: false
+    property bool todoDetailEditMode: false
+    property bool showTodoDeleteConfirmation: false
 
     property real defaultHourHeight: 50 * Style.uiScaleRatio
     property real minHourHeight: 32 * Style.uiScaleRatio
@@ -711,6 +714,309 @@ Item {
         }
     }
 
+    // Todo detail/edit popup
+    Rectangle {
+        id: todoDetailOverlay
+        anchors.fill: parent
+        color: Qt.rgba(0, 0, 0, 0.5)
+        visible: showTodoDetailDialog
+        z: 2000
+
+        MouseArea { anchors.fill: parent; onClicked: { showTodoDetailDialog = false; todoDetailEditMode = false; showTodoDeleteConfirmation = false } }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: 420 * Style.uiScaleRatio
+            height: todoDetailColumn.implicitHeight + 2 * Style.marginM
+            color: Color.mSurface
+            radius: Style.radiusM
+
+            MouseArea { anchors.fill: parent }
+
+            ColumnLayout {
+                id: todoDetailColumn
+                anchors.fill: parent
+                anchors.margins: Style.marginM
+                spacing: Style.marginS
+
+                property var todo: mainInstance?.selectedTodo || {}
+
+                // View mode
+                ColumnLayout {
+                    visible: !todoDetailEditMode && !showTodoDeleteConfirmation
+                    spacing: Style.marginS
+                    Layout.fillWidth: true
+
+                    NText {
+                        text: (todoDetailColumn.todo.status === "COMPLETED" ? "\u2611 " : "\u2610 ") + (todoDetailColumn.todo.summary || "")
+                        font.pointSize: Style.fontSizeL; font.weight: Font.Bold
+                        color: Color.mOnSurface
+                        wrapMode: Text.Wrap; Layout.fillWidth: true
+                    }
+
+                    RowLayout {
+                        visible: todoDetailColumn.todo.due != null
+                        spacing: Style.marginS
+                        NIcon { icon: "clock"; pointSize: Style.fontSizeS; color: Color.mOnSurfaceVariant }
+                        NText {
+                            text: todoDetailColumn.todo.due ? mainInstance?.formatDateTime(new Date(todoDetailColumn.todo.due)) || "" : ""
+                            font.pointSize: Style.fontSizeS; color: Color.mOnSurfaceVariant
+                        }
+                    }
+
+                    RowLayout {
+                        visible: (todoDetailColumn.todo.priority || 0) > 0
+                        spacing: Style.marginS
+                        NIcon { icon: "flag"; pointSize: Style.fontSizeS; color: Color.mOnSurfaceVariant }
+                        NText {
+                            text: {
+                                var p = todoDetailColumn.todo.priority || 0
+                                return p <= 4 ? (pluginApi.tr("panel.priority") + ": " + pluginApi.tr("panel.priority_high")) :
+                                       p <= 6 ? (pluginApi.tr("panel.priority") + ": " + pluginApi.tr("panel.priority_medium")) :
+                                                (pluginApi.tr("panel.priority") + ": " + pluginApi.tr("panel.priority_low"))
+                            }
+                            font.pointSize: Style.fontSizeS; color: Color.mOnSurfaceVariant
+                        }
+                    }
+
+                    NText {
+                        visible: (todoDetailColumn.todo.description || "") !== ""
+                        text: todoDetailColumn.todo.description || ""
+                        font.pointSize: Style.fontSizeS; color: Color.mOnSurfaceVariant
+                        wrapMode: Text.Wrap; Layout.fillWidth: true
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Style.marginS
+
+                        // Toggle complete button
+                        Rectangle {
+                            Layout.preferredWidth: toggleTodoBtn.implicitWidth + 2 * Style.marginM
+                            Layout.preferredHeight: toggleTodoBtn.implicitHeight + Style.marginS
+                            color: Color.mSecondary; radius: Style.radiusS
+                            NText {
+                                id: toggleTodoBtn; anchors.centerIn: parent
+                                text: todoDetailColumn.todo.status === "COMPLETED" ? "\u2610" : "\u2611"
+                                color: Color.mOnSecondary; font.weight: Font.Bold
+                            }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var t = todoDetailColumn.todo
+                                    if (t.status === "COMPLETED")
+                                        mainInstance?.uncompleteTodo(t.calendarUid, t.todoUid)
+                                    else
+                                        mainInstance?.completeTodo(t.calendarUid, t.todoUid)
+                                    showTodoDetailDialog = false
+                                }
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        Rectangle {
+                            Layout.preferredWidth: editTodoBtn.implicitWidth + 2 * Style.marginM
+                            Layout.preferredHeight: editTodoBtn.implicitHeight + Style.marginS
+                            color: Color.mPrimary; radius: Style.radiusS
+                            NText {
+                                id: editTodoBtn; anchors.centerIn: parent
+                                text: pluginApi.tr("panel.edit"); color: Color.mOnPrimary; font.weight: Font.Bold
+                            }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var t = todoDetailColumn.todo
+                                    editTodoSummary.text = t.summary || ""
+                                    editTodoDescription.text = t.description || ""
+                                    if (t.due) {
+                                        var d = new Date(t.due)
+                                        editTodoDueDate.text = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0') + "-" + String(d.getDate()).padStart(2,'0')
+                                        editTodoDueTime.text = String(d.getHours()).padStart(2,'0') + ":" + String(d.getMinutes()).padStart(2,'0')
+                                    } else {
+                                        editTodoDueDate.text = ""
+                                        editTodoDueTime.text = ""
+                                    }
+                                    editTodoPriority = t.priority || 0
+                                    todoDetailEditMode = true
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.preferredWidth: deleteTodoBtn.implicitWidth + 2 * Style.marginM
+                            Layout.preferredHeight: deleteTodoBtn.implicitHeight + Style.marginS
+                            color: Color.mError; radius: Style.radiusS
+                            NText {
+                                id: deleteTodoBtn; anchors.centerIn: parent
+                                text: pluginApi.tr("panel.delete"); color: Color.mOnError; font.weight: Font.Bold
+                            }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: showTodoDeleteConfirmation = true
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.preferredWidth: closeTodoBtn.implicitWidth + 2 * Style.marginM
+                            Layout.preferredHeight: closeTodoBtn.implicitHeight + Style.marginS
+                            color: Color.mSurfaceVariant; radius: Style.radiusS
+                            NText {
+                                id: closeTodoBtn; anchors.centerIn: parent
+                                text: pluginApi.tr("panel.close"); color: Color.mOnSurfaceVariant
+                            }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: { showTodoDetailDialog = false; todoDetailEditMode = false }
+                            }
+                        }
+                    }
+                }
+
+                // Delete confirmation
+                ColumnLayout {
+                    visible: showTodoDeleteConfirmation
+                    spacing: Style.marginS
+                    Layout.fillWidth: true
+
+                    NText {
+                        text: pluginApi.tr("panel.delete_task_confirm")
+                        font.pointSize: Style.fontSizeM; font.weight: Font.Bold; color: Color.mOnSurface
+                    }
+                    NText { text: todoDetailColumn.todo.summary || ""; font.pointSize: Style.fontSizeS; color: Color.mOnSurfaceVariant }
+
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: Style.marginS
+                        Item { Layout.fillWidth: true }
+                        Rectangle {
+                            Layout.preferredWidth: confirmDeleteTodoBtn.implicitWidth + 2 * Style.marginM
+                            Layout.preferredHeight: confirmDeleteTodoBtn.implicitHeight + Style.marginS
+                            color: Color.mError; radius: Style.radiusS
+                            NText { id: confirmDeleteTodoBtn; anchors.centerIn: parent; text: pluginApi.tr("panel.delete"); color: Color.mOnError; font.weight: Font.Bold }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var t = todoDetailColumn.todo
+                                    mainInstance?.deleteTodo(t.calendarUid, t.todoUid)
+                                    showTodoDetailDialog = false; showTodoDeleteConfirmation = false; todoDetailEditMode = false
+                                }
+                            }
+                        }
+                        Rectangle {
+                            Layout.preferredWidth: cancelDeleteTodoBtn.implicitWidth + 2 * Style.marginM
+                            Layout.preferredHeight: cancelDeleteTodoBtn.implicitHeight + Style.marginS
+                            color: Color.mSurfaceVariant; radius: Style.radiusS
+                            NText { id: cancelDeleteTodoBtn; anchors.centerIn: parent; text: pluginApi.tr("panel.cancel"); color: Color.mOnSurfaceVariant }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: showTodoDeleteConfirmation = false }
+                        }
+                    }
+                }
+
+                // Edit mode
+                property int editTodoPriority: 0
+                ColumnLayout {
+                    visible: todoDetailEditMode && !showTodoDeleteConfirmation
+                    spacing: Style.marginS
+                    Layout.fillWidth: true
+
+                    NText { text: pluginApi.tr("panel.edit_task"); font.pointSize: Style.fontSizeL; font.weight: Font.Bold; color: Color.mOnSurface }
+
+                    NText { text: pluginApi.tr("panel.task_summary"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                    TextField {
+                        id: editTodoSummary; Layout.fillWidth: true; color: Color.mOnSurface
+                        background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                    }
+
+                    NText { text: pluginApi.tr("panel.due_date"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                    TextField {
+                        id: editTodoDueDate; Layout.fillWidth: true; placeholderText: "YYYY-MM-DD"; color: Color.mOnSurface
+                        background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                    }
+
+                    NText { text: pluginApi.tr("panel.end_time"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                    TextField {
+                        id: editTodoDueTime; Layout.fillWidth: true; placeholderText: "HH:MM"; color: Color.mOnSurface
+                        background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                    }
+
+                    NText { text: pluginApi.tr("panel.description"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                    TextField {
+                        id: editTodoDescription; Layout.fillWidth: true; color: Color.mOnSurface
+                        background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                    }
+
+                    NText { text: pluginApi.tr("panel.priority"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                    RowLayout {
+                        spacing: Style.marginS
+                        Repeater {
+                            model: [
+                                { label: pluginApi.tr("panel.priority_high"), value: 1 },
+                                { label: pluginApi.tr("panel.priority_medium"), value: 5 },
+                                { label: pluginApi.tr("panel.priority_low"), value: 9 }
+                            ]
+                            Rectangle {
+                                Layout.preferredWidth: editPriLabel.implicitWidth + 2 * Style.marginM
+                                Layout.preferredHeight: editPriLabel.implicitHeight + Style.marginS
+                                color: todoDetailColumn.editTodoPriority === modelData.value ? Color.mPrimary : Color.mSurfaceVariant
+                                radius: Style.radiusS
+                                NText {
+                                    id: editPriLabel; anchors.centerIn: parent
+                                    text: modelData.label
+                                    color: todoDetailColumn.editTodoPriority === modelData.value ? Color.mOnPrimary : Color.mOnSurfaceVariant
+                                    font.weight: Font.Medium
+                                }
+                                MouseArea {
+                                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                    onClicked: todoDetailColumn.editTodoPriority =
+                                        todoDetailColumn.editTodoPriority === modelData.value ? 0 : modelData.value
+                                }
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: Style.marginS
+                        Item { Layout.fillWidth: true }
+                        Rectangle {
+                            Layout.preferredWidth: saveTodoBtn.implicitWidth + 2 * Style.marginM
+                            Layout.preferredHeight: saveTodoBtn.implicitHeight + Style.marginS
+                            color: Color.mPrimary; radius: Style.radiusS
+                            NText { id: saveTodoBtn; anchors.centerIn: parent; text: pluginApi.tr("panel.save"); color: Color.mOnPrimary; font.weight: Font.Bold }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var t = todoDetailColumn.todo
+                                    var dueTs = 0
+                                    if (editTodoDueDate.text.trim() !== "") {
+                                        var dateParts = editTodoDueDate.text.split("-")
+                                        var timeParts = editTodoDueTime.text.split(":")
+                                        var h = editTodoDueTime.text.trim() === "" ? 0 : parseInt(timeParts[0])
+                                        var m = editTodoDueTime.text.trim() === "" ? 0 : parseInt(timeParts[1] || "0")
+                                        var d = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]), h, m, 0)
+                                        if (!isNaN(d.getTime())) dueTs = Math.floor(d.getTime() / 1000)
+                                    }
+                                    mainInstance?.updateTodoFields(
+                                        t.calendarUid, t.todoUid,
+                                        editTodoSummary.text.trim(),
+                                        editTodoDescription.text.trim(),
+                                        dueTs, todoDetailColumn.editTodoPriority)
+                                    showTodoDetailDialog = false; todoDetailEditMode = false
+                                }
+                            }
+                        }
+                        Rectangle {
+                            Layout.preferredWidth: editTodoCancelBtn.implicitWidth + 2 * Style.marginM
+                            Layout.preferredHeight: editTodoCancelBtn.implicitHeight + Style.marginS
+                            color: Color.mSurfaceVariant; radius: Style.radiusS
+                            NText { id: editTodoCancelBtn; anchors.centerIn: parent; text: pluginApi.tr("panel.cancel"); color: Color.mOnSurfaceVariant }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: todoDetailEditMode = false }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // UI
     Rectangle {
         id: panelContainer
@@ -950,10 +1256,10 @@ Item {
                                         }
                                         onClicked: {
                                             if (isTodoItem) {
-                                                if (eventData.todoStatus === "COMPLETED")
-                                                    mainInstance?.uncompleteTodo(eventData.calendarUid, eventData.todoUid)
-                                                else
-                                                    mainInstance?.completeTodo(eventData.calendarUid, eventData.todoUid)
+                                                mainInstance?.handleTodoClick(eventData)
+                                                showTodoDetailDialog = true
+                                                todoDetailEditMode = false
+                                                showTodoDeleteConfirmation = false
                                             } else {
                                                 mainInstance?.handleEventClick(eventData)
                                                 showEventDetailDialog = true
@@ -1103,36 +1409,53 @@ Item {
                                             property real eventXOffset: overlapInfo.xOffset
 
                                             property bool isTodoItem: model.isTodo || false
-                                            property bool isDeadline: model.isDeadlineMarker || false
+                                            property bool isTodoLine: isTodoItem && (model.isDeadlineMarker || model.isLineTodo || false)
+                                            property bool isDeadline: (model.isDeadlineMarker || false) && !isTodoLine
                                             property color eventColor: isDeadline ? Color.mSecondary : (isTodoItem ? Color.mSecondary : Color.mPrimary)
                                             property color eventTextColor: isDeadline ? Color.mOnSecondary : (isTodoItem ? Color.mOnSecondary : Color.mOnPrimary)
+                                            property real todoLineThickness: Math.max(2, 2 * Style.uiScaleRatio)
+                                            property real todoLabelGutter: {
+                                                var available = Math.max(eventWidth - 12, 0)
+                                                var base = Math.min(Math.max(eventWidth * 0.5, 80 * Style.uiScaleRatio), 150 * Style.uiScaleRatio)
+                                                var gutter = Math.min(base, available)
+                                                if (gutter <= 0 && available > 0) gutter = Math.min(available, 40 * Style.uiScaleRatio)
+                                                return gutter
+                                            }
 
                                             visible: dayIndex >= 0 && dayIndex < 7 && duration > 0
                                             width: eventWidth
-                                            height: isDeadline ? Math.max(8, Math.min(12, exactHeight)) : exactHeight
+                                            height: isTodoLine ? Math.max(todoLineThickness + 10, 18 * Style.uiScaleRatio)
+                                                                : (isDeadline ? Math.max(8, Math.min(12, exactHeight)) : exactHeight)
                                             x: dayIndex * ((mainInstance?.dayColumnWidth) + (root.daySpacing)) + eventXOffset
                                             y: startHour * (root.hourHeight)
-                                            z: 100 + overlapInfo.lane
+                                            z: (isTodoLine ? 300 : 100) + overlapInfo.lane
 
-                                            Rectangle {
+                                            Item {
                                                 anchors.fill: parent
-                                                color: eventColor
-                                                radius: Style.radiusS
-                                                opacity: isDeadline ? 0.95 : (isTodoItem && model.todoStatus === "COMPLETED" ? 0.5 : 0.9)
-                                                clip: true
+                                                clip: false
+
                                                 Rectangle {
-                                                    visible: exactHeight < 5 && overlapInfo.lane > 0
                                                     anchors.fill: parent
-                                                    color: "transparent"
-                                                    radius: parent.radius
-                                                    border.width: 1
-                                                    border.color: eventColor
+                                                    visible: !isTodoLine
+                                                    color: eventColor
+                                                    radius: Style.radiusS
+                                                    opacity: isDeadline ? 0.95 : (isTodoItem && model.todoStatus === "COMPLETED" ? 0.5 : 0.9)
+                                                    clip: true
+                                                    Rectangle {
+                                                        visible: exactHeight < 5 && overlapInfo.lane > 0
+                                                        anchors.fill: parent
+                                                        color: "transparent"
+                                                        radius: parent.radius
+                                                        border.width: 1
+                                                        border.color: eventColor
+                                                    }
                                                 }
+
                                                 Loader {
                                                     anchors.fill: parent
-                                                    anchors.margins: exactHeight < 10 ? 1 : Style.marginS
-                                                    anchors.leftMargin: exactHeight < 10 ? 1 : Style.marginS + 3
-                                                    sourceComponent: isDeadline ? deadlineLayout : (isCompact ? compactLayout : normalLayout)
+                                                    anchors.margins: isTodoLine ? 0 : (exactHeight < 10 ? 1 : Style.marginS)
+                                                    anchors.leftMargin: isTodoLine ? 0 : (exactHeight < 10 ? 1 : Style.marginS + 3)
+                                                    sourceComponent: isTodoLine ? todoLineLayout : (isDeadline ? deadlineLayout : (isCompact ? compactLayout : normalLayout))
                                                 }
                                             }
 
@@ -1185,6 +1508,59 @@ Item {
                                             }
 
                                             Component {
+                                                id: todoLineLayout
+                                                Item {
+                                                    anchors.fill: parent
+                                                    clip: false
+
+                                                    Rectangle {
+                                                        id: line
+                                                        anchors.left: parent.left
+                                                        anchors.right: parent.right
+                                                        anchors.rightMargin: todoLabelGutter
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        height: todoLineThickness
+                                                        radius: todoLineThickness / 2
+                                                        color: eventColor
+                                                        opacity: model.todoStatus === "COMPLETED" ? 0.45 : 1.0
+                                                    }
+
+                                                    Rectangle {
+                                                        id: leader
+                                                        width: 12 * Style.uiScaleRatio
+                                                        height: todoLineThickness
+                                                        anchors.left: line.right
+                                                        anchors.verticalCenter: line.verticalCenter
+                                                        color: eventColor
+                                                        opacity: line.opacity
+                                                    }
+
+                                                    Rectangle {
+                                                        id: labelBox
+                                                        anchors.left: leader.right
+                                                        anchors.verticalCenter: line.verticalCenter
+                                                        width: Math.max(todoLabelGutter - leader.width, 70 * Style.uiScaleRatio)
+                                                        height: Math.max(todoLineThickness + Style.marginS, 18 * Style.uiScaleRatio)
+                                                        radius: Style.radiusS
+                                                        color: Color.mSurface
+                                                        border.color: Qt.alpha(eventColor, 0.9)
+                                                        border.width: 1
+                                                        NText {
+                                                            anchors.fill: parent
+                                                            anchors.margins: Style.marginS / 2
+                                                            text: (model.todoStatus === "COMPLETED" ? "\u2611 " : "\u2610 ") + (model.title || "")
+                                                            color: eventColor
+                                                            font.pointSize: Style.fontSizeXXS
+                                                            font.weight: Font.Medium
+                                                            font.strikeout: model.todoStatus === "COMPLETED"
+                                                            elide: Text.ElideRight
+                                                            verticalAlignment: Text.AlignVCenter
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            Component {
                                                 id: deadlineLayout
                                                 Rectangle {
                                                     anchors.fill: parent
@@ -1204,10 +1580,10 @@ Item {
                                                 }
                                                 onClicked: {
                                                     if (isTodoItem) {
-                                                        if (model.todoStatus === "COMPLETED")
-                                                            mainInstance?.uncompleteTodo(model.calendarUid, model.todoUid)
-                                                        else
-                                                            mainInstance?.completeTodo(model.calendarUid, model.todoUid)
+                                                        mainInstance?.handleTodoClick(model)
+                                                        showTodoDetailDialog = true
+                                                        todoDetailEditMode = false
+                                                        showTodoDeleteConfirmation = false
                                                     } else {
                                                         mainInstance?.handleEventClick(eventData)
                                                         showEventDetailDialog = true

@@ -39,7 +39,15 @@
     "task_created": "任务已创建",
     "task_error": "创建任务失败",
     "show_completed": "显示已完成",
-    "overdue": "已逾期"
+    "overdue": "已逾期",
+    "edit": "编辑",
+    "delete": "删除",
+    "close": "关闭",
+    "save": "保存",
+    "edit_event": "编辑活动",
+    "edit_task": "编辑任务",
+    "delete_confirm": "确定删除此活动？",
+    "delete_task_confirm": "确定删除此任务？"
   },
   "settings": {
     "weekStart": "一周起始日",

@@ -294,7 +294,7 @@ Item {
             if (!showCompletedTodos && todo.status === "COMPLETED") continue
 
             var isDueAllDay = (dueDate.getHours() === 0 && dueDate.getMinutes() === 0)
-            // Render timed todos as short deadline markers (~8–10 px tall)
+            // Render timed todos as horizontal line markers (keep a short span for ordering/click hitbox)
             var endDate = isDueAllDay ? new Date(dueDate.getTime() + 86400000)
                                        : new Date(dueDate.getTime() + 30 * 60000)
 
@@ -313,6 +313,7 @@ Item {
                 calendarUid: todo.calendarUid,
                 todoStatus: todo.status,
                 todoPriority: todo.priority,
+                isLineTodo: !isDueAllDay,
                 // Helper flags for compact rendering in Panel.qml
                 isDeadlineMarker: !isDueAllDay
             }
@@ -470,6 +471,7 @@ Item {
         var events = []
         for (var i = 0; i < eventsModel.count; i++) {
             var e = eventsModel.get(i)
+            if (e.isTodo) continue  // Timed todos render as overlay lines; don't occupy lanes
             if (getDisplayDayIndexForDate(e.startTime) === day) {
                 events.push({index: i, start: e.startTime.getTime(), end: e.endTime.getTime()})
             }
@@ -637,6 +639,10 @@ Item {
     property var selectedEvent: null
     property bool showEventDetail: false
 
+    // Todo detail popup state
+    property var selectedTodo: null
+    property bool showTodoDetail: false
+
     function handleEventClick(event) {
         selectedEvent = {
             title: event.title || "",
@@ -672,6 +678,32 @@ Item {
         if (endTs > 0) { args.push("--end"); args.push(String(endTs)) }
         updateEventProcess.command = args
         updateEventProcess.running = true
+    }
+
+    function handleTodoClick(todoData) {
+        selectedTodo = {
+            summary: todoData.title || todoData.summary || "",
+            description: todoData.description || "",
+            todoUid: todoData.todoUid || "",
+            calendarUid: todoData.calendarUid || "",
+            status: todoData.todoStatus || "",
+            priority: todoData.todoPriority || 0,
+            due: todoData.startTime || null
+        }
+        showTodoDetail = true
+    }
+
+    function updateTodoFields(taskListUid, todoUid, summary, description, dueTs, priority) {
+        if (!pluginApi) return
+        var scriptPath = pluginApi.pluginDir + "/scripts/update-todo.py"
+        var args = ["python3", scriptPath,
+            "--task-list", taskListUid, "--uid", todoUid, "--action", "update"]
+        if (summary !== undefined && summary !== null) { args.push("--summary"); args.push(summary) }
+        if (description !== undefined && description !== null) { args.push("--description"); args.push(description) }
+        if (dueTs > 0) { args.push("--due"); args.push(String(dueTs)) }
+        if (priority >= 0) { args.push("--priority"); args.push(String(priority)) }
+        updateTodoProcess.command = args
+        updateTodoProcess.running = true
     }
 
     function goToToday() { currentDate = new Date() }

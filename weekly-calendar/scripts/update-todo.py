@@ -35,8 +35,12 @@ def main():
     parser = argparse.ArgumentParser(description="Update/delete EDS VTODO item")
     parser.add_argument("--task-list", required=True, help="Task list UID")
     parser.add_argument("--uid", required=True, help="VTODO UID")
-    parser.add_argument("--action", required=True, choices=["complete", "uncomplete", "delete"],
+    parser.add_argument("--action", required=True, choices=["complete", "uncomplete", "delete", "update"],
                         help="Action to perform")
+    parser.add_argument("--summary", help="New task summary (for update)")
+    parser.add_argument("--description", help="New task description (for update)")
+    parser.add_argument("--due", type=int, help="New due date as unix timestamp (for update)")
+    parser.add_argument("--priority", type=int, help="New priority 0-9 (for update)")
     args = parser.parse_args()
 
     try:
@@ -91,6 +95,25 @@ def main():
 
             # Remove COMPLETED timestamp
             remove_property(ical, ICalGLib.PropertyKind.COMPLETED_PROPERTY)
+
+        elif args.action == "update":
+            if args.summary is not None:
+                ical.set_summary(args.summary)
+            if args.description is not None:
+                ical.set_description(args.description)
+            if args.due is not None:
+                dt = datetime.fromtimestamp(args.due, tz=timezone.utc)
+                t = ICalGLib.Time.new_null_time()
+                t.set_date(dt.year, dt.month, dt.day)
+                t.set_time(dt.hour, dt.minute, dt.second)
+                t.set_timezone(ICalGLib.Timezone.get_utc_timezone())
+                remove_property(ical, ICalGLib.PropertyKind.DUE_PROPERTY)
+                prop = ICalGLib.Property.new_due(t)
+                ical.add_property(prop)
+            if args.priority is not None:
+                remove_property(ical, ICalGLib.PropertyKind.PRIORITY_PROPERTY)
+                prop = ICalGLib.Property.new_priority(args.priority)
+                ical.add_property(prop)
 
         client.modify_object_sync(comp, ECal.ObjModType.ALL, ECal.OperationFlags.NONE, None)
         print(json.dumps({"success": True}))

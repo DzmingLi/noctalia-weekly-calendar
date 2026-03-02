@@ -39,7 +39,15 @@
     "task_created": "Task created",
     "task_error": "Failed to create task",
     "show_completed": "Show completed",
-    "overdue": "Overdue"
+    "overdue": "Overdue",
+    "edit": "Edit",
+    "delete": "Delete",
+    "close": "Close",
+    "save": "Save",
+    "edit_event": "Edit Event",
+    "edit_task": "Edit Task",
+    "delete_confirm": "Delete this event?",
+    "delete_task_confirm": "Delete this task?"
   },
   "settings": {
     "weekStart": "First day of week",
