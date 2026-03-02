@@ -54,7 +54,7 @@ def main():
             sys.exit(1)
 
         client = ECal.Client.connect_sync(
-            source, ECal.ClientSourceType.TASKS, -1, None
+            source, ECal.ClientSourceType.TASKS, 30, None
         )
 
         comp = ICalGLib.Component.new(ICalGLib.ComponentKind.VTODO_COMPONENT)

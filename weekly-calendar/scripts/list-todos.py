@@ -56,7 +56,7 @@ def main():
 
             try:
                 client = ECal.Client.connect_sync(
-                    source, ECal.ClientSourceType.TASKS, -1, None
+                    source, ECal.ClientSourceType.TASKS, 30, None
                 )
             except Exception:
                 continue
