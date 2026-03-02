@@ -22,6 +22,9 @@ Item {
 
     property bool showCreateDialog: false
     property bool showCreateTaskDialog: false
+    property bool showEventDetailDialog: false
+    property bool eventDetailEditMode: false
+    property bool showDeleteConfirmation: false
 
     property real defaultHourHeight: 50 * Style.uiScaleRatio
     property real minHourHeight: 32 * Style.uiScaleRatio
@@ -380,6 +383,334 @@ Item {
         }
     }
 
+    // Event detail/edit popup
+    Rectangle {
+        id: eventDetailOverlay
+        anchors.fill: parent
+        color: Qt.rgba(0, 0, 0, 0.5)
+        visible: showEventDetailDialog
+        z: 2000
+
+        MouseArea { anchors.fill: parent; onClicked: { showEventDetailDialog = false; eventDetailEditMode = false; showDeleteConfirmation = false } }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: 420 * Style.uiScaleRatio
+            height: eventDetailColumn.implicitHeight + 2 * Style.marginM
+            color: Color.mSurface
+            radius: Style.radiusM
+
+            MouseArea { anchors.fill: parent }
+
+            ColumnLayout {
+                id: eventDetailColumn
+                anchors.fill: parent
+                anchors.margins: Style.marginM
+                spacing: Style.marginS
+
+                property var evt: mainInstance?.selectedEvent || {}
+
+                // View mode
+                ColumnLayout {
+                    visible: !eventDetailEditMode && !showDeleteConfirmation
+                    spacing: Style.marginS
+                    Layout.fillWidth: true
+
+                    NText {
+                        text: eventDetailColumn.evt.title || ""
+                        font.pointSize: Style.fontSizeL; font.weight: Font.Bold
+                        color: Color.mOnSurface
+                        wrapMode: Text.Wrap; Layout.fillWidth: true
+                    }
+
+                    RowLayout {
+                        spacing: Style.marginS
+                        NIcon { icon: "clock"; pointSize: Style.fontSizeS; color: Color.mOnSurfaceVariant }
+                        NText {
+                            text: {
+                                var e = eventDetailColumn.evt
+                                if (!e.startTime) return ""
+                                return mainInstance?.formatDateTime(e.startTime) + " - " + mainInstance?.formatDateTime(e.endTime)
+                            }
+                            font.pointSize: Style.fontSizeS; color: Color.mOnSurfaceVariant
+                            wrapMode: Text.Wrap; Layout.fillWidth: true
+                        }
+                    }
+
+                    RowLayout {
+                        visible: (eventDetailColumn.evt.location || "") !== ""
+                        spacing: Style.marginS
+                        NIcon { icon: "map-pin"; pointSize: Style.fontSizeS; color: Color.mOnSurfaceVariant }
+                        NText {
+                            text: eventDetailColumn.evt.location || ""
+                            font.pointSize: Style.fontSizeS; color: Color.mOnSurfaceVariant
+                            wrapMode: Text.Wrap; Layout.fillWidth: true
+                        }
+                    }
+
+                    NText {
+                        visible: (eventDetailColumn.evt.description || "") !== ""
+                        text: eventDetailColumn.evt.description || ""
+                        font.pointSize: Style.fontSizeS; color: Color.mOnSurfaceVariant
+                        wrapMode: Text.Wrap; Layout.fillWidth: true
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Style.marginS
+
+                        Item { Layout.fillWidth: true }
+
+                        Rectangle {
+                            Layout.preferredWidth: editEventBtn.implicitWidth + 2 * Style.marginM
+                            Layout.preferredHeight: editEventBtn.implicitHeight + Style.marginS
+                            color: Color.mPrimary; radius: Style.radiusS
+                            visible: (eventDetailColumn.evt.eventUid || "") !== ""
+                            NText {
+                                id: editEventBtn; anchors.centerIn: parent
+                                text: pluginApi.tr("panel.edit") || "Edit"
+                                color: Color.mOnPrimary; font.weight: Font.Bold
+                            }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var e = eventDetailColumn.evt
+                                    editEventSummary.text = e.title || ""
+                                    editEventLocation.text = e.location || ""
+                                    editEventDescription.text = e.description || ""
+                                    if (e.startTime) {
+                                        var s = new Date(e.startTime)
+                                        editEventDate.text = s.getFullYear() + "-" + String(s.getMonth()+1).padStart(2,'0') + "-" + String(s.getDate()).padStart(2,'0')
+                                        editEventStartTime.text = String(s.getHours()).padStart(2,'0') + ":" + String(s.getMinutes()).padStart(2,'0')
+                                    }
+                                    if (e.endTime) {
+                                        var en = new Date(e.endTime)
+                                        editEventEndTime.text = String(en.getHours()).padStart(2,'0') + ":" + String(en.getMinutes()).padStart(2,'0')
+                                    }
+                                    eventDetailEditMode = true
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.preferredWidth: deleteEventBtn.implicitWidth + 2 * Style.marginM
+                            Layout.preferredHeight: deleteEventBtn.implicitHeight + Style.marginS
+                            color: Color.mError; radius: Style.radiusS
+                            visible: (eventDetailColumn.evt.eventUid || "") !== ""
+                            NText {
+                                id: deleteEventBtn; anchors.centerIn: parent
+                                text: pluginApi.tr("panel.delete") || "Delete"
+                                color: Color.mOnError; font.weight: Font.Bold
+                            }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: showDeleteConfirmation = true
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.preferredWidth: closeEventBtn.implicitWidth + 2 * Style.marginM
+                            Layout.preferredHeight: closeEventBtn.implicitHeight + Style.marginS
+                            color: Color.mSurfaceVariant; radius: Style.radiusS
+                            NText {
+                                id: closeEventBtn; anchors.centerIn: parent
+                                text: pluginApi.tr("panel.close") || "Close"
+                                color: Color.mOnSurfaceVariant
+                            }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: { showEventDetailDialog = false; eventDetailEditMode = false }
+                            }
+                        }
+                    }
+                }
+
+                // Delete confirmation mode
+                ColumnLayout {
+                    visible: showDeleteConfirmation
+                    spacing: Style.marginS
+                    Layout.fillWidth: true
+
+                    NText {
+                        text: (pluginApi.tr("panel.delete_confirm") || "Delete this event?")
+                        font.pointSize: Style.fontSizeM; font.weight: Font.Bold
+                        color: Color.mOnSurface
+                    }
+                    NText {
+                        text: eventDetailColumn.evt.title || ""
+                        font.pointSize: Style.fontSizeS; color: Color.mOnSurfaceVariant
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Style.marginS
+                        Item { Layout.fillWidth: true }
+
+                        Rectangle {
+                            Layout.preferredWidth: confirmDeleteBtn.implicitWidth + 2 * Style.marginM
+                            Layout.preferredHeight: confirmDeleteBtn.implicitHeight + Style.marginS
+                            color: Color.mError; radius: Style.radiusS
+                            NText {
+                                id: confirmDeleteBtn; anchors.centerIn: parent
+                                text: pluginApi.tr("panel.delete") || "Delete"
+                                color: Color.mOnError; font.weight: Font.Bold
+                            }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var e = eventDetailColumn.evt
+                                    mainInstance?.deleteEvent(e.calendarUid, e.eventUid)
+                                    showEventDetailDialog = false
+                                    showDeleteConfirmation = false
+                                    eventDetailEditMode = false
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.preferredWidth: cancelDeleteBtn.implicitWidth + 2 * Style.marginM
+                            Layout.preferredHeight: cancelDeleteBtn.implicitHeight + Style.marginS
+                            color: Color.mSurfaceVariant; radius: Style.radiusS
+                            NText {
+                                id: cancelDeleteBtn; anchors.centerIn: parent
+                                text: pluginApi.tr("panel.cancel"); color: Color.mOnSurfaceVariant
+                            }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: showDeleteConfirmation = false
+                            }
+                        }
+                    }
+                }
+
+                // Edit mode
+                ColumnLayout {
+                    visible: eventDetailEditMode && !showDeleteConfirmation
+                    spacing: Style.marginS
+                    Layout.fillWidth: true
+
+                    NText {
+                        text: pluginApi.tr("panel.edit_event") || "Edit Event"
+                        font.pointSize: Style.fontSizeL; font.weight: Font.Bold
+                        color: Color.mOnSurface
+                    }
+
+                    NText { text: pluginApi.tr("panel.summary"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                    TextField {
+                        id: editEventSummary
+                        Layout.fillWidth: true
+                        color: Color.mOnSurface
+                        background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                    }
+
+                    NText { text: pluginApi.tr("panel.date"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                    TextField {
+                        id: editEventDate
+                        Layout.fillWidth: true
+                        placeholderText: "YYYY-MM-DD"
+                        color: Color.mOnSurface
+                        background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                    }
+
+                    RowLayout {
+                        spacing: Style.marginS
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            NText { text: pluginApi.tr("panel.start_time"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                            TextField {
+                                id: editEventStartTime
+                                Layout.fillWidth: true
+                                placeholderText: "HH:MM"
+                                color: Color.mOnSurface
+                                background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                            }
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            NText { text: pluginApi.tr("panel.end_time"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                            TextField {
+                                id: editEventEndTime
+                                Layout.fillWidth: true
+                                placeholderText: "HH:MM"
+                                color: Color.mOnSurface
+                                background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                            }
+                        }
+                    }
+
+                    NText { text: pluginApi.tr("panel.location"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                    TextField {
+                        id: editEventLocation
+                        Layout.fillWidth: true
+                        color: Color.mOnSurface
+                        background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                    }
+
+                    NText { text: pluginApi.tr("panel.description"); color: Color.mOnSurfaceVariant; font.pointSize: Style.fontSizeS }
+                    TextField {
+                        id: editEventDescription
+                        Layout.fillWidth: true
+                        color: Color.mOnSurface
+                        background: Rectangle { color: Color.mSurfaceVariant; radius: Style.radiusS }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Style.marginS
+                        Item { Layout.fillWidth: true }
+
+                        Rectangle {
+                            Layout.preferredWidth: saveEventBtn.implicitWidth + 2 * Style.marginM
+                            Layout.preferredHeight: saveEventBtn.implicitHeight + Style.marginS
+                            color: Color.mPrimary; radius: Style.radiusS
+                            NText {
+                                id: saveEventBtn; anchors.centerIn: parent
+                                text: pluginApi.tr("panel.save") || "Save"
+                                color: Color.mOnPrimary; font.weight: Font.Bold
+                            }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var e = eventDetailColumn.evt
+                                    var dateParts = editEventDate.text.split("-")
+                                    var startParts = editEventStartTime.text.split(":")
+                                    var endParts = editEventEndTime.text.split(":")
+                                    var startDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1])-1, parseInt(dateParts[2]),
+                                                             parseInt(startParts[0]), parseInt(startParts[1]), 0)
+                                    var endDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1])-1, parseInt(dateParts[2]),
+                                                           parseInt(endParts[0]), parseInt(endParts[1]), 0)
+                                    mainInstance?.updateEvent(
+                                        e.calendarUid, e.eventUid,
+                                        editEventSummary.text.trim(),
+                                        editEventLocation.text.trim(),
+                                        editEventDescription.text.trim(),
+                                        Math.floor(startDate.getTime()/1000),
+                                        Math.floor(endDate.getTime()/1000))
+                                    showEventDetailDialog = false
+                                    eventDetailEditMode = false
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.preferredWidth: editCancelBtn.implicitWidth + 2 * Style.marginM
+                            Layout.preferredHeight: editCancelBtn.implicitHeight + Style.marginS
+                            color: Color.mSurfaceVariant; radius: Style.radiusS
+                            NText {
+                                id: editCancelBtn; anchors.centerIn: parent
+                                text: pluginApi.tr("panel.cancel"); color: Color.mOnSurfaceVariant
+                            }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: eventDetailEditMode = false
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // UI
     Rectangle {
         id: panelContainer
@@ -625,6 +956,9 @@ Item {
                                                     mainInstance?.completeTodo(eventData.calendarUid, eventData.todoUid)
                                             } else {
                                                 mainInstance?.handleEventClick(eventData)
+                                                showEventDetailDialog = true
+                                                eventDetailEditMode = false
+                                                showDeleteConfirmation = false
                                             }
                                         }
                                         onExited: TooltipService.hide()
@@ -876,6 +1210,9 @@ Item {
                                                             mainInstance?.completeTodo(model.calendarUid, model.todoUid)
                                                     } else {
                                                         mainInstance?.handleEventClick(eventData)
+                                                        showEventDetailDialog = true
+                                                        eventDetailEditMode = false
+                                                        showDeleteConfirmation = false
                                                     }
                                                 }
                                                 onExited: TooltipService.hide()

@@ -296,7 +296,7 @@ Item {
             var isDueAllDay = (dueDate.getHours() === 0 && dueDate.getMinutes() === 0)
             // Render timed todos as short deadline markers (~8–10 px tall)
             var endDate = isDueAllDay ? new Date(dueDate.getTime() + 86400000)
-                                       : new Date(dueDate.getTime() + 5 * 60000)
+                                       : new Date(dueDate.getTime() + 30 * 60000)
 
             var todoEvent = {
                 id: "todo-" + todo.uid,
@@ -364,7 +364,8 @@ Item {
             id: id, title: event.summary || "Untitled Event", description: event.description || "",
             location: event.location || "", startTime: start, endTime: end, allDay: allDay, multiDay: multiDay,
             daySpan: daySpan, rawStart: event.start, rawEnd: event.end, duration: (event.end - event.start) / 3600,
-            endsAtMidnight: endsMidnight, isTodo: false, todoUid: "", calendarUid: "", todoStatus: "", todoPriority: 0
+            endsAtMidnight: endsMidnight, isTodo: false, todoUid: "", calendarUid: event.calendar_uid || "",
+            eventUid: event.uid || "", todoStatus: "", todoPriority: 0
         }
     }
 
@@ -374,7 +375,8 @@ Item {
             location: event.location, startTime: start, endTime: end, allDay: false, multiDay: true,
             daySpan: 1, fullStartTime: event.startTime, fullEndTime: event.endTime, isPart: true,
             partDay: new Date(day), partIndex: partNum, totalParts: total,
-            isTodo: false, todoUid: "", calendarUid: "", todoStatus: "", todoPriority: 0
+            isTodo: false, todoUid: "", calendarUid: event.calendarUid || "", eventUid: event.eventUid || "",
+            todoStatus: "", todoPriority: 0
         }
     }
 
@@ -454,7 +456,7 @@ Item {
             endsAtMidnight: event.endsAtMidnight, fullStartTime: event.fullStartTime, fullEndTime: event.fullEndTime,
             startDay: startDay, spanDays: spanDays, lane: lane, isContinuation: isCont,
             isTodo: event.isTodo || false, todoUid: event.todoUid || "", calendarUid: event.calendarUid || "",
-            todoStatus: event.todoStatus || "", todoPriority: event.todoPriority || 0
+            eventUid: event.eventUid || "", todoStatus: event.todoStatus || "", todoPriority: event.todoPriority || 0
         }
     }
 
@@ -631,15 +633,45 @@ Item {
         currentDate = d
     }
 
+    // Event detail popup state
+    property var selectedEvent: null
+    property bool showEventDetail: false
+
     function handleEventClick(event) {
-        const date = event.startTime || new Date();
-        const month = date.getMonth() + 1;
-        const day = date.getDate();
-        const year = date.getFullYear();
-        const dateWithSlashes = `${month.toString().padStart(2, '0')}/${day.toString().padStart(2, '0')}/${year.toString().substring(2)}`;
-        if (ProgramCheckerService.gnomeCalendarAvailable) {
-            Quickshell.execDetached(["gnome-calendar", "--date", dateWithSlashes]);
+        selectedEvent = {
+            title: event.title || "",
+            description: event.description || "",
+            location: event.location || "",
+            startTime: event.fullStartTime || event.startTime,
+            endTime: event.fullEndTime || event.endTime,
+            calendarUid: event.calendarUid || "",
+            eventUid: event.eventUid || "",
+            rawStart: event.rawStart || 0,
+            rawEnd: event.rawEnd || 0
         }
+        showEventDetail = true
+    }
+
+    function deleteEvent(calendarUid, eventUid) {
+        if (!pluginApi) return
+        var scriptPath = pluginApi.pluginDir + "/scripts/update-event.py"
+        updateEventProcess.command = ["python3", scriptPath,
+            "--calendar", calendarUid, "--uid", eventUid, "--action", "delete"]
+        updateEventProcess.running = true
+    }
+
+    function updateEvent(calendarUid, eventUid, summary, location, description, startTs, endTs) {
+        if (!pluginApi) return
+        var scriptPath = pluginApi.pluginDir + "/scripts/update-event.py"
+        var args = ["python3", scriptPath,
+            "--calendar", calendarUid, "--uid", eventUid, "--action", "update"]
+        if (summary !== undefined && summary !== null) { args.push("--summary"); args.push(summary) }
+        if (location !== undefined && location !== null) { args.push("--location"); args.push(location) }
+        if (description !== undefined && description !== null) { args.push("--description"); args.push(description) }
+        if (startTs > 0) { args.push("--start"); args.push(String(startTs)) }
+        if (endTs > 0) { args.push("--end"); args.push(String(endTs)) }
+        updateEventProcess.command = args
+        updateEventProcess.running = true
     }
 
     function goToToday() { currentDate = new Date() }
@@ -673,6 +705,33 @@ Item {
         stderr: SplitParser {
             onRead: data => createEventStderr += data
         }
+    }
+
+    // Event update/delete process
+    property string updateEventStdout: ""
+    property string updateEventStderr: ""
+
+    Process {
+        id: updateEventProcess
+        onExited: function(exitCode, exitStatus) {
+            if (exitCode === 0) {
+                try {
+                    var result = JSON.parse(updateEventStdout)
+                    if (result.success) {
+                        console.log("[weekly-calendar] Event updated/deleted")
+                        Qt.callLater(loadEvents)
+                    }
+                } catch(e) {
+                    console.error("[weekly-calendar] Failed to parse update-event output: " + updateEventStdout)
+                }
+            } else {
+                console.error("[weekly-calendar] update-event.py failed: " + updateEventStderr)
+            }
+            updateEventStdout = ""
+            updateEventStderr = ""
+        }
+        stdout: SplitParser { onRead: data => updateEventStdout += data }
+        stderr: SplitParser { onRead: data => updateEventStderr += data }
     }
 
     function createEvent(calendarUid, summary, startTimestamp, endTimestamp, location, description) {
