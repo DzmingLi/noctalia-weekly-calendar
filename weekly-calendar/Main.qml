@@ -25,6 +25,7 @@ Item {
     property var taskLists: []
     property bool todosLoading: false
     property bool showCompletedTodos: false
+    property string todoSyncStatus: ""
     
     property real dayColumnWidth: 120 * Style.uiScaleRatio
     property real allDaySectionHeight: 0 * Style.uiScaleRatio
