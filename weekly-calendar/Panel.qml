@@ -589,20 +589,21 @@ Item {
                                 delegate: Item {
                                     property var eventData: modelData
                                     property bool isTodoItem: eventData.isTodo || false
+                                    property bool isDeadline: eventData.isDeadlineMarker || false
                                     x: eventData.startDay * ((mainInstance?.dayColumnWidth) + (root.daySpacing))
                                     y: eventData.lane * 25
                                     width: (eventData.spanDays * ((mainInstance?.dayColumnWidth) + (root.daySpacing))) - (root.daySpacing)
-                                    height: 24
+                                    height: isDeadline ? 10 : 24
 
                                     Rectangle {
                                         anchors.fill: parent
-                                        color: isTodoItem ? Color.mSecondary : Color.mTertiary
+                                        color: isDeadline ? Color.mSecondary : (isTodoItem ? Color.mSecondary : Color.mTertiary)
                                         radius: Style.radiusS
                                         opacity: isTodoItem && eventData.todoStatus === "COMPLETED" ? 0.5 : 1.0
                                         NText {
                                             anchors.fill: parent; anchors.margins: 4
-                                            text: (isTodoItem ? (eventData.todoStatus === "COMPLETED" ? "\u2611 " : "\u2610 ") : "") + eventData.title
-                                            color: isTodoItem ? Color.mOnSecondary : Color.mOnTertiary
+                                            text: isDeadline ? "" : (isTodoItem ? (eventData.todoStatus === "COMPLETED" ? "\u2611 " : "\u2610 ") : "") + eventData.title
+                                            color: isDeadline ? Color.mOnSecondary : (isTodoItem ? Color.mOnSecondary : Color.mOnTertiary)
                                             font.pointSize: Style.fontSizeXXS; font.weight: Font.Medium
                                             font.strikeout: isTodoItem && eventData.todoStatus === "COMPLETED"
                                             elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter
@@ -767,22 +768,23 @@ Item {
                                             property real eventWidth: overlapInfo.width - 1
                                             property real eventXOffset: overlapInfo.xOffset
 
+                                            property bool isTodoItem: model.isTodo || false
+                                            property bool isDeadline: model.isDeadlineMarker || false
+                                            property color eventColor: isDeadline ? Color.mSecondary : (isTodoItem ? Color.mSecondary : Color.mPrimary)
+                                            property color eventTextColor: isDeadline ? Color.mOnSecondary : (isTodoItem ? Color.mOnSecondary : Color.mOnPrimary)
+
                                             visible: dayIndex >= 0 && dayIndex < 7 && duration > 0
                                             width: eventWidth
-                                            height: exactHeight
+                                            height: isDeadline ? Math.max(8, Math.min(12, exactHeight)) : exactHeight
                                             x: dayIndex * ((mainInstance?.dayColumnWidth) + (root.daySpacing)) + eventXOffset
                                             y: startHour * (root.hourHeight)
                                             z: 100 + overlapInfo.lane
-
-                                            property bool isTodoItem: model.isTodo || false
-                                            property color eventColor: isTodoItem ? Color.mSecondary : Color.mPrimary
-                                            property color eventTextColor: isTodoItem ? Color.mOnSecondary : Color.mOnPrimary
 
                                             Rectangle {
                                                 anchors.fill: parent
                                                 color: eventColor
                                                 radius: Style.radiusS
-                                                opacity: isTodoItem && model.todoStatus === "COMPLETED" ? 0.5 : 0.9
+                                                opacity: isDeadline ? 0.95 : (isTodoItem && model.todoStatus === "COMPLETED" ? 0.5 : 0.9)
                                                 clip: true
                                                 Rectangle {
                                                     visible: exactHeight < 5 && overlapInfo.lane > 0
@@ -796,7 +798,7 @@ Item {
                                                     anchors.fill: parent
                                                     anchors.margins: exactHeight < 10 ? 1 : Style.marginS
                                                     anchors.leftMargin: exactHeight < 10 ? 1 : Style.marginS + 3
-                                                    sourceComponent: isCompact ? compactLayout : normalLayout
+                                                    sourceComponent: isDeadline ? deadlineLayout : (isCompact ? compactLayout : normalLayout)
                                                 }
                                             }
 
@@ -845,6 +847,16 @@ Item {
                                                     font.strikeout: isTodoItem && model.todoStatus === "COMPLETED"
                                                     elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter
                                                     width: parent.width - 3
+                                                }
+                                            }
+
+                                            Component {
+                                                id: deadlineLayout
+                                                Rectangle {
+                                                    anchors.fill: parent
+                                                    color: eventColor
+                                                    radius: parent.radius
+                                                    opacity: 0.95
                                                 }
                                             }
 

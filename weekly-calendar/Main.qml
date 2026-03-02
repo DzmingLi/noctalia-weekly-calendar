@@ -294,8 +294,9 @@ Item {
             if (!showCompletedTodos && todo.status === "COMPLETED") continue
 
             var isDueAllDay = (dueDate.getHours() === 0 && dueDate.getMinutes() === 0)
+            // Render timed todos as short deadline markers (~8–10 px tall)
             var endDate = isDueAllDay ? new Date(dueDate.getTime() + 86400000)
-                                       : new Date(dueDate.getTime() + 1800000)
+                                       : new Date(dueDate.getTime() + 5 * 60000)
 
             var todoEvent = {
                 id: "todo-" + todo.uid,
@@ -312,6 +313,8 @@ Item {
                 calendarUid: todo.calendarUid,
                 todoStatus: todo.status,
                 todoPriority: todo.priority,
+                // Helper flags for compact rendering in Panel.qml
+                isDeadlineMarker: !isDueAllDay
             }
 
             if (isDueAllDay) {
