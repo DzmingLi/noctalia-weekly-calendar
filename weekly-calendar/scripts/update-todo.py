@@ -47,7 +47,7 @@ def main():
             sys.exit(1)
 
         client = ECal.Client.connect_sync(
-            source, ECal.ClientSourceType.TASKS, 30, None
+            source, ECal.ClientSourceType.TASKS, 1, None
         )
 
         if args.action == "delete":
