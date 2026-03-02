@@ -1401,7 +1401,11 @@ Item {
                                             property real duration: Math.max(0, (model.endTime - model.startTime) / 3600000)
 
                                             property real exactHeight: Math.max(1, duration * (root.hourHeight) - 1)
-                                            property bool isCompact: exactHeight < 40
+                                            property real minEventHeight: 18 * Style.uiScaleRatio
+                                            property real renderHeight: isDeadline
+                                                ? Math.max(8, Math.min(12, exactHeight))
+                                                : Math.max(exactHeight, minEventHeight)
+                                            property bool isCompact: renderHeight < 40
                                             property var overlapInfo: mainInstance?.overlappingEventsData?.[index] ?? {
                                                 xOffset: 0, width: (mainInstance?.dayColumnWidth) - 8, lane: 0, totalLanes: 1
                                             }
@@ -1415,7 +1419,7 @@ Item {
 
                                             visible: dayIndex >= 0 && dayIndex < 7 && duration > 0
                                             width: eventWidth
-                                            height: isDeadline ? Math.max(8, Math.min(12, exactHeight)) : exactHeight
+                                            height: renderHeight
                                             x: dayIndex * ((mainInstance?.dayColumnWidth) + (root.daySpacing)) + eventXOffset
                                             y: startHour * (root.hourHeight)
                                             z: 100 + overlapInfo.lane
@@ -1436,8 +1440,8 @@ Item {
                                                 }
                                                 Loader {
                                                     anchors.fill: parent
-                                                    anchors.margins: exactHeight < 10 ? 1 : Style.marginS
-                                                    anchors.leftMargin: exactHeight < 10 ? 1 : Style.marginS + 3
+                                                    anchors.margins: renderHeight < 12 ? 1 : Style.marginS
+                                                    anchors.leftMargin: renderHeight < 12 ? 1 : Style.marginS + 3
                                                     sourceComponent: isDeadline ? deadlineLayout : (isCompact ? compactLayout : normalLayout)
                                                 }
                                             }
@@ -1448,7 +1452,7 @@ Item {
                                                     spacing: 2
                                                     width: parent.width - 3
                                                     NText {
-                                                        visible: exactHeight >= 20
+                                                        visible: renderHeight >= 20
                                                         text: (isTodoItem ? (model.todoStatus === "COMPLETED" ? "\u2611 " : "\u2610 ") : "") + model.title
                                                         color: eventTextColor
                                                         font.pointSize: Style.fontSizeXS; font.weight: Font.Medium
@@ -1456,14 +1460,14 @@ Item {
                                                         elide: Text.ElideRight; width: parent.width
                                                     }
                                                     NText {
-                                                        visible: exactHeight >= 30 && !isTodoItem
+                                                        visible: renderHeight >= 30 && !isTodoItem
                                                         text: mainInstance?.formatTimeRangeForDisplay(model) || ""
                                                         color: eventTextColor
                                                         font.pointSize: Style.fontSizeXXS; opacity: 0.9
                                                         elide: Text.ElideRight; width: parent.width
                                                     }
                                                     NText {
-                                                        visible: exactHeight >= 45 && model.location && model.location !== ""
+                                                        visible: renderHeight >= 45 && model.location && model.location !== ""
                                                         text: "\u26B2 " + (model.location || "")
                                                         color: eventTextColor
                                                         font.pointSize: Style.fontSizeXXS; opacity: 0.8
@@ -1477,12 +1481,12 @@ Item {
                                                 NText {
                                                     text: {
                                                         var prefix = isTodoItem ? (model.todoStatus === "COMPLETED" ? "\u2611 " : "\u2610 ") : ""
-                                                        if (exactHeight < 15) return prefix + model.title
+                                                        if (renderHeight < 15) return prefix + model.title
                                                         if (isTodoItem) return prefix + model.title
                                                         return model.title + " \u2022 " + (mainInstance?.formatTimeRangeForDisplay(model) || "")
                                                     }
                                                     color: eventTextColor
-                                                    font.pointSize: exactHeight < 15 ? Style.fontSizeXXS : Style.fontSizeXS
+                                                    font.pointSize: renderHeight < 15 ? Style.fontSizeXXS : Style.fontSizeXS
                                                     font.weight: Font.Medium
                                                     font.strikeout: isTodoItem && model.todoStatus === "COMPLETED"
                                                     elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter
