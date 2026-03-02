@@ -1401,7 +1401,7 @@ Item {
                                             property real duration: Math.max(0, (model.endTime - model.startTime) / 3600000)
 
                                             property real exactHeight: Math.max(1, duration * (root.hourHeight) - 1)
-                                            property real minEventHeight: 18 * Style.uiScaleRatio
+                                            property real minEventHeight: (isTodoItem ? 22 : 18) * Style.uiScaleRatio
                                             property real renderHeight: isDeadline
                                                 ? Math.max(8, Math.min(12, exactHeight))
                                                 : Math.max(exactHeight, minEventHeight)
@@ -1413,7 +1413,7 @@ Item {
                                             property real eventXOffset: overlapInfo.xOffset
 
                                             property bool isTodoItem: model.isTodo || false
-                                            property bool isDeadline: model.isDeadlineMarker || false
+                                            property bool isDeadline: (!isTodoItem) && (model.isDeadlineMarker || false)
                                             property color eventColor: isDeadline ? Color.mSecondary : (isTodoItem ? Color.mSecondary : Color.mPrimary)
                                             property color eventTextColor: isDeadline ? Color.mOnSecondary : (isTodoItem ? Color.mOnSecondary : Color.mOnPrimary)
 
